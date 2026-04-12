@@ -571,7 +571,7 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
         self.vocab_embed = EmbeddingLayer(dim, vocab_size)
         if not self.causal:
             self.sigma_map = TimestepEmbedder(cond_dim)
-        if 'flm' or 'fmlm' in self.config.algo.name:
+        if 'flm' in self.config.algo.name or 'fmlm' in self.config.algo.name:
             if self.config.algo.double_temb:
                 self.sigma_map_prime = TimestepEmbedder(cond_dim)
             else:
