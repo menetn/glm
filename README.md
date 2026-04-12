@@ -12,7 +12,7 @@
 
 <div align="center">
 
-**[[Project Page]](https://one-step-lm.github.io/)** | **[[Paper]](https://arxiv.org/abs/2602.16813)** | **[[Blog]](https://arxiv.org/abs/2602.16813)**
+**[[Project Page]](https://one-step-lm.github.io/)** | **[[Paper]](https://arxiv.org/abs/2602.16813)** | **[[Blog]](https://one-step-lm.github.io/blog/index.html)**
 
 </div>
 
