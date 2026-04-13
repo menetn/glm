@@ -53,7 +53,7 @@ Our DiT backbone supports `torch.compile` with `max-autotune` for faster trainin
 export DIT_USE_COMPILE=TRUE
 ```
 
-With the option, we are able to train OpenWebText experiments with 512 batch size on 8 H100 (80GB VRAM), without gradient accumulation.
+With the option, we are able to train OpenWebText experiments with 512 batch size on 8 H100 (80GB VRAM), with local batch size of 32.
 
 ### Training
 

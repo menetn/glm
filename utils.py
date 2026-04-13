@@ -527,7 +527,6 @@ def compute_alpha_exact_torch(gamma, K: int, x_np, w_np, sigma_floor: float = 1e
     dtype = gamma.dtype
     device = gamma.device 
 
-    # 1. Standardized means
     sigma = 1.0 - gamma
     if is_diffusion:
         sigma = torch.sqrt(sigma)
@@ -536,7 +535,6 @@ def compute_alpha_exact_torch(gamma, K: int, x_np, w_np, sigma_floor: float = 1e
     
     m_c = gamma / sigma
     
-    # Tensor 변환
     x = torch.tensor(x_np, dtype=dtype, device=device)
     w = torch.tensor(w_np, dtype=dtype, device=device)
     

@@ -36,6 +36,9 @@ reference_metrics/
 # Jupyter
 .ipynb_checkpoints/
 
+# HuggingFace Hub upload scripts (local only, not for the repo)
+hf_upload/
+
 # IDE
 .vscode/
 .idea/
