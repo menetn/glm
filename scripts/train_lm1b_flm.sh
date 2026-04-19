@@ -4,8 +4,8 @@ DATA_DIR="YOUR_DATA_DIR"
 
 python -u -m main \
   loader.global_batch_size=512 \
-  loader.batch_size=32 \
-  loader.eval_batch_size=32 \
+  loader.batch_size=128 \
+  loader.eval_batch_size=128 \
   data=lm1b-wrap \
   data.cache_dir=$DATA_DIR \
   wandb.project=lm1b_full \

@@ -9,7 +9,7 @@ t_max: 1.0
 t_min: 0.0
 double_temb: True
 add_boundary: fixed
-diagonal_fraction: 0.75
+diagonal_fraction: 0.5
 offdiagonal_sampling: uniform_diff
 set_midpoint: midpoint
 boundary_prob: 32
@@ -21,5 +21,5 @@ use_mse_loss_psd: False
 rescale_offdiag_loss_psd: False
 use_ema_for_psd_target: False
 use_teacher_for_D_t_lsd: False
-initialize_student_from_teacher: False
+initialize_student_from_teacher: True
 teacher_path: ''
