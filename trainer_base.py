@@ -43,15 +43,14 @@ class LogLinear(torch.nn.Module):
         assert alpha_t.shape == dalpha_t.shape
         return dalpha_t, alpha_t
 
-
 def sample_categorical(categorical_probs, temperature=1.0):
+    categorical_probs = categorical_probs.to(torch.float64)
     if temperature != 1.0:
         categorical_probs = categorical_probs.pow(1.0 / temperature)
     gumbel_norm = (
         1e-10
         - (torch.rand_like(categorical_probs) + 1e-10).log())
-    return (categorical_probs / gumbel_norm).argmax(dim=-1)
-
+    return (categorical_probs / gumbel_norm.to(categorical_probs.dtype)).argmax(dim=-1)
 
 def _unsqueeze(x, reference):
     return x.view(
