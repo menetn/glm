@@ -12,12 +12,17 @@
 
 <div align="center">
 
-**[[Project Page]](https://one-step-lm.github.io/)** | **[[Paper]](https://arxiv.org/abs/2602.16813)** | **[[Blog]](https://one-step-lm.github.io/blog/index.html)**
+[![arXiv](https://img.shields.io/badge/arXiv-2602.16813-b31b1b?style=flat&logo=arxiv)](https://arxiv.org/abs/2602.16813)
+[![Project Page](https://img.shields.io/badge/Project_Page-grey?style=flat&logo=github)](https://one-step-lm.github.io/)
+[![Blog](https://img.shields.io/badge/Blog-grey?style=flat&logo=rss)](https://one-step-lm.github.io/blog/index.html)
+[![Google Drive](https://img.shields.io/badge/Google_Drive-4285F4?style=flat&logo=googledrive&logoColor=white)](https://drive.google.com/drive/folders/1fNAx4LP2RwPBdqDQFQ_gRrYZI9u3Vq15?usp=drive_link)
+[![HuggingFace](https://img.shields.io/badge/🤗_HuggingFace-FF9D00?style=flat&logoColor=white)](https://huggingface.co/collections/david3684/flm-fmlm)
 
 </div>
 
 ## News
 
+- **[2026-05]** Added huggingface links for the checkpoints. 
 - **[2026-04]** We released LM1B/OpenWebText checkpoints for FLM and FMLM. 
 
 ## TL;DR
@@ -84,7 +89,7 @@ Set `CKPT_PATH` in the script to your trained checkpoint before running.
 ## Checkpoints
 ### Pretrained Checkpoints
 
-Pretrained FLM and FMLM checkpoints are available at [here](https://drive.google.com/drive/folders/1fNAx4LP2RwPBdqDQFQ_gRrYZI9u3Vq15?usp=drive_link).
+Pretrained FLM and FMLM checkpoints are available at [Google Drive](https://drive.google.com/drive/folders/1fNAx4LP2RwPBdqDQFQ_gRrYZI9u3Vq15?usp=drive_link) or [Huggingface](https://huggingface.co/collections/david3684/flm-fmlm).
 
 
 | Model | Dataset     | Checkpoint       |
