@@ -39,7 +39,7 @@ We introduce **Flow Language Model (FLM)** and its flow-map distilled variant **
 
 ## Overview
 
-**FLM** applies the benefits of continuous image generation to discrete state spaces by encoding text as one-hot vectors and using flow matching to directly map noise to one-hot data. Unlike discrete diffusion, **FLM** gradually denoises all tokens in parallel with a deterministic sample-level ODE, allowing it to represent a superposition of sequences and avoid per-token ancestral sampling — a fundamental bottleneck for discrete diffusion in the few-step regime. We extend this to FMLM, where learns the **flow map** which is the direct solution operator of the flow, enabling a **single-NFE parallel language generation**.
+**FLM** applies the benefits of continuous image generation to discrete state spaces by encoding text as one-hot vectors and using flow matching to directly map noise to one-hot data. Unlike discrete diffusion, **FLM** gradually denoises all tokens in parallel with a deterministic sample-level ODE, allowing it to represent a superposition of sequences and avoid per-token ancestral sampling — a fundamental bottleneck for discrete diffusion in the few-step regime. We extend this to **FMLM**, where learns the **flow map** which is the direct solution operator of the flow, enabling **one-step parallel language generation**.
 
 ## How to Run
 
