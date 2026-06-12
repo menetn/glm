@@ -111,60 +111,110 @@ For other checkpoints, mostly for OpenWebText, refer to [Duo](https://github.com
 
 ### Full results 
 
-#### FLM 
+#### FLM (Undistilled)
 <p align="center">
   <img src="figures/flm_figure.png" width="100%">
 </p>
 
-#### LM1B - FLM (Undistilled)
-| Step | Gen.PPL | Entropy |
-| :---: | :---: | :---: |
-| **8** | 243.36 | 2.41 |
-| **16** | 198.53 | 4.22 |
-| **32** | 152.01 | 4.40 |
-| **64** | 126.51 | 4.36 |
-| **128** | 112.54 | 4.34 |
-| **256** | 104.59 | 4.32 |
-| **512** | 99.75 | 4.30 |
-| **1024** | 96.91 | 4.29 |
+<table border="0" style="width: 100%; border-collapse: collapse; border: none;">
+  <tr style="border: none;">
+    <td style="width: 50%; vertical-align: top; border: none; padding-right: 10px;">
+      <h4 align="center">LM1B</h4>
+      <table style="margin: 0 auto;">
+        <thead>
+          <tr>
+            <th style="text-align: center;">Step</th>
+            <th style="text-align: center;">Gen.PPL</th>
+            <th style="text-align: center;">Entropy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="text-align: center;"><b>8</b></td><td style="text-align: center;">243.36</td><td style="text-align: center;">2.41</td></tr>
+          <tr><td style="text-align: center;"><b>16</b></td><td style="text-align: center;">198.53</td><td style="text-align: center;">4.22</td></tr>
+          <tr><td style="text-align: center;"><b>32</b></td><td style="text-align: center;">152.01</td><td style="text-align: center;">4.40</td></tr>
+          <tr><td style="text-align: center;"><b>64</b></td><td style="text-align: center;">126.51</td><td style="text-align: center;">4.36</td></tr>
+          <tr><td style="text-align: center;"><b>128</b></td><td style="text-align: center;">112.54</td><td style="text-align: center;">4.34</td></tr>
+          <tr><td style="text-align: center;"><b>256</b></td><td style="text-align: center;">104.59</td><td style="text-align: center;">4.32</td></tr>
+          <tr><td style="text-align: center;"><b>512</b></td><td style="text-align: center;">99.75</td><td style="text-align: center;">4.30</td></tr>
+          <tr><td style="text-align: center;"><b>1024</b></td><td style="text-align: center;">96.91</td><td style="text-align: center;">4.29</td></tr>
+        </tbody>
+      </table>
+    </td>
+    <td style="width: 50%; vertical-align: top; border: none; padding-left: 10px;">
+      <h4 align="center">OpenWebText</h4>
+      <table style="margin: 0 auto;">
+        <thead>
+          <tr>
+            <th style="text-align: center;">Step</th>
+            <th style="text-align: center;">Gen.PPL</th>
+            <th style="text-align: center;">Entropy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="text-align: center;"><b>8</b></td><td style="text-align: center;">449.15</td><td style="text-align: center;">5.21</td></tr>
+          <tr><td style="text-align: center;"><b>16</b></td><td style="text-align: center;">380.99</td><td style="text-align: center;">5.66</td></tr>
+          <tr><td style="text-align: center;"><b>32</b></td><td style="text-align: center;">240.11</td><td style="text-align: center;">5.72</td></tr>
+          <tr><td style="text-align: center;"><b>64</b></td><td style="text-align: center;">147.28</td><td style="text-align: center;">5.68</td></tr>
+          <tr><td style="text-align: center;"><b>128</b></td><td style="text-align: center;">103.30</td><td style="text-align: center;">5.58</td></tr>
+          <tr><td style="text-align: center;"><b>256</b></td><td style="text-align: center;">82.05</td><td style="text-align: center;">5.48</td></tr>
+          <tr><td style="text-align: center;"><b>512</b></td><td style="text-align: center;">70.22</td><td style="text-align: center;">5.40</td></tr>
+          <tr><td style="text-align: center;"><b>1024</b></td><td style="text-align: center;">62.23</td><td style="text-align: center;">5.33</td></tr>
+        </tbody>
+      </table>
+    </td>
+  </tr>
+</table>
 
-#### OpenWebText - FLM (Undistilled)
-| Step | Gen.PPL | Entropy |
-| :---: | :---: | :---: |
-| **8** | 449.15 | 5.21 |
-| **16** | 380.99 | 5.66 |
-| **32** | 240.11 | 5.72 |
-| **64** | 147.28 | 5.68 |
-| **128** | 103.30 | 5.58 |
-| **256** | 82.05 | 5.48 |
-| **512** | 70.22 | 5.40 |
-| **1024** | 62.23 | 5.33 |
-
-#### FMLM
+#### FMLM (Distilled)
 
 <p align="center">
   <img src="figures/fmlm_figure.png" width="100%">
 </p>
 
-#### LM1B - FMLM (Distilled)
-| Step | Gen.PPL | Entropy |
-| :---: | :---: | :---: |
-| **1** | 119.34 | 4.16 |
-| **2** | 110.19 | 4.21 |
-| **4** | 98.76 | 4.21 |
-| **8** | 86.32 | 4.21 |
-| **16** | 78.35 | 4.21 |
-| **32** | 69.21 | 4.21 |
-
-#### OpenWebText - FMLM (Distilled)
-| Step | Gen.PPL | Entropy |
-| :---: | :---: | :---: |
-| **1** | 168.30 | 5.17 |
-| **2** | 133.29 | 5.25 |
-| **4** | 111.31 | 5.26 |
-| **8** | 86.50 | 5.36 |
-| **16** | 63.63 | 5.29 |
-| **32** | 45.09 | 5.25 |
+<table border="0" style="width: 100%; border-collapse: collapse; border: none;">
+  <tr style="border: none;">
+    <td style="width: 50%; vertical-align: top; border: none; padding-right: 10px;">
+      <h4 align="center">LM1B</h4>
+      <table style="margin: 0 auto;">
+        <thead>
+          <tr>
+            <th style="text-align: center;">Step</th>
+            <th style="text-align: center;">Gen.PPL</th>
+            <th style="text-align: center;">Entropy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="text-align: center;"><b>1</b></td><td style="text-align: center;">119.34</td><td style="text-align: center;">4.16</td></tr>
+          <tr><td style="text-align: center;"><b>2</b></td><td style="text-align: center;">110.19</td><td style="text-align: center;">4.21</td></tr>
+          <tr><td style="text-align: center;"><b>4</b></td><td style="text-align: center;">98.76</td><td style="text-align: center;">4.21</td></tr>
+          <tr><td style="text-align: center;"><b>8</b></td><td style="text-align: center;">86.32</td><td style="text-align: center;">4.21</td></tr>
+          <tr><td style="text-align: center;"><b>16</b></td><td style="text-align: center;">78.35</td><td style="text-align: center;">4.21</td></tr>
+          <tr><td style="text-align: center;"><b>32</b></td><td style="text-align: center;">69.21</td><td style="text-align: center;">4.21</td></tr>
+        </tbody>
+      </table>
+    </td>
+    <td style="width: 50%; vertical-align: top; border: none; padding-left: 10px;">
+      <h4 align="center">OpenWebText</h4>
+      <table style="margin: 0 auto;">
+        <thead>
+          <tr>
+            <th style="text-align: center;">Step</th>
+            <th style="text-align: center;">Gen.PPL</th>
+            <th style="text-align: center;">Entropy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="text-align: center;"><b>1</b></td><td style="text-align: center;">168.30</td><td style="text-align: center;">5.17</td></tr>
+          <tr><td style="text-align: center;"><b>2</b></td><td style="text-align: center;">133.29</td><td style="text-align: center;">5.25</td></tr>
+          <tr><td style="text-align: center;"><b>4</b></td><td style="text-align: center;">111.31</td><td style="text-align: center;">5.26</td></tr>
+          <tr><td style="text-align: center;"><b>8</b></td><td style="text-align: center;">86.50</td><td style="text-align: center;">5.36</td></tr>
+          <tr><td style="text-align: center;"><b>16</b></td><td style="text-align: center;">63.63</td><td style="text-align: center;">5.29</td></tr>
+          <tr><td style="text-align: center;"><b>32</b></td><td style="text-align: center;">45.09</td><td style="text-align: center;">5.25</td></tr>
+        </tbody>
+      </table>
+    </td>
+  </tr>
+</table>
 
 ## BibTeX
 
