@@ -39,7 +39,7 @@ We introduce **Flow Language Model (FLM)** and its flow-map distilled variant **
 
 ## Overview
 
-FLM applies the benefits of continuous image generation to discrete state spaces by encoding text as one-hot vectors and using flow matching to directly map noise to one-hot data. Unlike discrete diffusion, FLM **gradually denoises all tokens in parallel**, allowing it to represent a superposition of sequences while capturing correlations between tokens — a fundamental bottleneck for discrete diffusion in the few-step regime.
+**FLM** applies the benefits of continuous image generation to discrete state spaces by encoding text as one-hot vectors and using flow matching to directly map noise to one-hot data. Unlike discrete diffusion, **FLM** gradually denoises all tokens in parallel with a deterministic sample-level ODE, allowing it to represent a superposition of sequences and avoid per-token ancestral sampling — a fundamental bottleneck for discrete diffusion in the few-step regime. We extend this to FMLM, where learns the **flow map** which is the direct solution operator of the flow, enabling a **single-NFE parallel language generation**.
 
 ## How to Run
 
@@ -107,6 +107,64 @@ Set `eval.checkpoint_path` (or `algo.teacher_path` for distillation) to the down
 Reproduced baseline checkpoints for LM1B are available at [here](https://drive.google.com/drive/folders/1TJO3aFWqI7ukbmjciZ6krAUFlAak1itl?usp=drive_link).
 
 For other checkpoints, mostly for OpenWebText, refer to [Duo](https://github.com/s-sahoo/duo), [SDTT](https://github.com/jdeschena/sdtt), [RDLM](https://github.com/harryjo97/RDLM), [di4c](https://github.com/sony/di4c) repositories.
+
+
+### Full results 
+
+#### FLM 
+<p align="center">
+  <img src="figures/flm_figure.gif" width="100%">
+</p>
+
+#### LM1B - FLM (Undistilled)
+| Step | Gen.PPL | Entropy |
+| :---: | :---: | :---: |
+| **8** | 243.36 | 2.41 |
+| **16** | 198.53 | 4.22 |
+| **32** | 152.01 | 4.40 |
+| **64** | 126.51 | 4.36 |
+| **128** | 112.54 | 4.34 |
+| **256** | 104.59 | 4.32 |
+| **512** | 99.75 | 4.30 |
+| **1024** | 96.91 | 4.29 |
+
+#### OpenWebText - FLM (Undistilled)
+| Step | Gen.PPL | Entropy |
+| :---: | :---: | :---: |
+| **8** | 449.15 | 5.21 |
+| **16** | 380.99 | 5.66 |
+| **32** | 240.11 | 5.72 |
+| **64** | 147.28 | 5.68 |
+| **128** | 103.30 | 5.58 |
+| **256** | 82.05 | 5.48 |
+| **512** | 70.22 | 5.40 |
+| **1024** | 62.23 | 5.33 |
+
+#### FMLM
+
+<p align="center">
+  <img src="figures/fmlm_figure.gif" width="100%">
+</p>
+
+#### LM1B - FMLM (Distilled)
+| Step | Gen.PPL | Entropy |
+| :---: | :---: | :---: |
+| **1** | 119.34 | 4.16 |
+| **2** | 110.19 | 4.21 |
+| **4** | 98.76 | 4.21 |
+| **8** | 86.32 | 4.21 |
+| **16** | 78.35 | 4.21 |
+| **32** | 69.21 | 4.21 |
+
+#### OpenWebText - FMLM (Distilled)
+| Step | Gen.PPL | Entropy |
+| :---: | :---: | :---: |
+| **1** | 168.30 | 5.17 |
+| **2** | 133.29 | 5.25 |
+| **4** | 111.31 | 5.26 |
+| **8** | 86.50 | 5.36 |
+| **16** | 63.63 | 5.29 |
+| **32** | 45.09 | 5.25 |
 
 ## BibTeX
 
