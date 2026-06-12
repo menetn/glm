@@ -113,7 +113,7 @@ For other checkpoints, mostly for OpenWebText, refer to [Duo](https://github.com
 
 #### FLM 
 <p align="center">
-  <img src="figures/flm_figure.gif" width="100%">
+  <img src="figures/flm_figure.png" width="100%">
 </p>
 
 #### LM1B - FLM (Undistilled)
@@ -143,7 +143,7 @@ For other checkpoints, mostly for OpenWebText, refer to [Duo](https://github.com
 #### FMLM
 
 <p align="center">
-  <img src="figures/fmlm_figure.gif" width="100%">
+  <img src="figures/fmlm_figure.png" width="100%">
 </p>
 
 #### LM1B - FMLM (Distilled)
