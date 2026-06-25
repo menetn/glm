@@ -76,11 +76,11 @@ def _print_config(
         branch.add(rich.syntax.Syntax(branch_content, 'yaml'))
     rich.print(tree)
     if save_cfg:
+        os.makedirs(config.checkpointing.save_dir, exist_ok=True)
         with fsspec.open(
             '{}/config_tree.txt'.format(
                 config.checkpointing.save_dir), 'w') as fp:
             rich.print(tree, file=fp)
-
 
 @L.pytorch.utilities.rank_zero_only
 def _print_batch(train_ds, valid_ds, tokenizer, k=64):
@@ -95,7 +95,6 @@ def _print_batch(train_ds, valid_ds, tokenizer, k=64):
         print('ids:', first)
         print(f'Last {k} tokens:', tokenizer.decode(last))
         print('ids:', last)
-
 
 def _generate_samples(diffusion_model, config, logger,
                       tokenizer):

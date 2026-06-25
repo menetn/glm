@@ -1093,9 +1093,9 @@ class SMFLM(FLMBase):
         t = self._tau_to_t(tau_t)
         gamma, _ = self.gamma_schedule(tau_t)
         committed = torch.rand(x0.shape[0], x0.shape[1], device=self.device) < gamma[:, None]
-        x_gauss, one_hot = self.corrupt_continuous(x0, t)
-        x_gauss[committed] = one_hot[committed]
-        return x_gauss, one_hot
+        x_hybrid, one_hot = self.corrupt_continuous(x0, t)
+        torch.where(committed.unsqueeze(-1), one_hot, x_hybrid, out=x_hybrid) # in-place memory efficient selection
+        return x_hybrid, one_hot
 
     def loss(self, x0, output_tokens,
              current_accumulation_step=None, train_mode=False,
