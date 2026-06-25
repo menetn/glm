@@ -20,7 +20,10 @@ finetune_path=/path/to/intermediate_duo_500k.ckpt
 # Assuming the finetune_path corresponds to the DUO model
 # trained for 500K steps with curriculum learning, we train the
 # model for 500K more steps.
+CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
+
 srun python -u -m main \
+  checkpointing.save_dir=$CHECKPOINT_DIR \
   loader.batch_size=64 \
   loader.eval_batch_size=64 \
   data=openwebtext-split \

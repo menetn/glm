@@ -3,7 +3,10 @@
 TEACHER_PATH="YOUR_FLM_CHECKPOINT_PATH"
 DATA_CACHE_DIR="YOUR_DATA_DIR"
 
+CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
+
 python -u -m main \
+  checkpointing.save_dir=$CHECKPOINT_DIR \
   loader.global_batch_size=128 \
   loader.batch_size=16 \
   loader.eval_batch_size=16 \

@@ -2,7 +2,10 @@
 
 DATA_DIR="YOUR_DATA_DIR"
 
+CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
+
 python -u -m main \
+  checkpointing.save_dir=$CHECKPOINT_DIR \
   loader.global_batch_size=512 \
   loader.batch_size=32 \
   loader.eval_batch_size=32 \

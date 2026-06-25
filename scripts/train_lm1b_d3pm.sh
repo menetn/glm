@@ -15,7 +15,10 @@
 
 # To enable preemption re-loading, set `hydra.run.dir` or 
 # `checkpointing.save_dir` explicitly.
+CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
+
 srun python -u -m main \
+  checkpointing.save_dir=$CHECKPOINT_DIR \
   loader.batch_size=64 \
   loader.eval_batch_size=64 \
   model=small \
