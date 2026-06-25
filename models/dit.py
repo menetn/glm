@@ -167,7 +167,6 @@ def apply_rotary_pos_emb(qkv, cos, sin, use_flash=True):
 
 
 def regular_attention_multi_headed(q, k, v, tq=None, tk=None, tv=None):
-
     with sdpa_kernel(SDPBackend.FLASH_ATTENTION):
         attention_output = F.scaled_dot_product_attention(
             query=q.transpose(1, 2),
@@ -220,7 +219,6 @@ class LayerNorm(nn.Module):
             x = F.layer_norm(x.float(), [self.dim])
         return x * self.weight[None, None, :]
 
-
 def residual_linear(x, W, x_skip, residual_scale):
     """x_skip + residual_scale * W @ x"""
     dim_out, dim_in = W.shape[0], W.shape[1]
@@ -229,8 +227,6 @@ def residual_linear(x, W, x_skip, residual_scale):
         x.view(-1, dim_in),
         W.T,
         alpha=residual_scale).view(*x.shape[:-1], dim_out)
-
-
 #################################################################################
 #               Embedding Layers for Timesteps and Class Labels                 #
 #################################################################################

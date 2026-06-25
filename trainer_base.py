@@ -58,6 +58,36 @@ def _unsqueeze(x, reference):
         * ((1,) * (len(reference.shape) - len(x.shape))))
 
 
+class LinearGammaSchedule(torch.nn.Module):
+    """Linear gamma schedule: gamma(tau) = c * tau, dgamma/dtau = c.
+    gamma_scale=0 recovers pure FLM; gamma_scale=1 gives gamma=tau (default)."""
+    def __init__(self, gamma_scale: float = 1.0):
+        super().__init__()
+        assert 0.0 <= gamma_scale <= 1.0, "gamma_scale must be in [0, 1]"
+        self.gamma_scale = gamma_scale
+
+    def forward(self, tau):
+        # tau: (...) tensor in [0, 1]
+        gamma = self.gamma_scale * tau
+        dgamma_dtau = self.gamma_scale * torch.ones_like(tau)
+        return gamma, dgamma_dtau
+
+
+class CosineGammaSchedule(torch.nn.Module):
+    """Cosine gamma schedule: gamma(tau) = c * (1 - cos(pi*tau/2)).
+    Smooth zero-derivative at tau=0 and tau=1."""
+    def __init__(self, gamma_scale: float = 1.0):
+        super().__init__()
+        assert 0.0 <= gamma_scale <= 1.0, "gamma_scale must be in [0, 1]"
+        self.gamma_scale = gamma_scale
+
+    def forward(self, tau):
+        import math
+        gamma = self.gamma_scale * (1 - torch.cos(tau * math.pi / 2))
+        dgamma_dtau = self.gamma_scale * math.pi / 2 * torch.sin(tau * math.pi / 2)
+        return gamma, dgamma_dtau
+
+
 class TrainerBase(L.LightningModule):
     def __init__(
             self,
@@ -378,7 +408,6 @@ class TrainerBase(L.LightningModule):
         return losses.loss
 
     def on_validation_epoch_end(self):
-
         for k, v in self.metrics.valid_nlls.items():
             self.log(name=k,  value=v.compute(), on_step=False,
                      on_epoch=True, sync_dist=True)
@@ -484,6 +513,7 @@ class TrainerBase(L.LightningModule):
             print('xT saved to:', xT_path)
             print('x0 saved to:', x0_path)
         return
+        
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
             self._get_parameters(),

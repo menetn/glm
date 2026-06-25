@@ -1,0 +1,23 @@
+# for smflm pretrain
+
+name: smflm
+backbone: dit            # Neural network architecture (dit / dimamba / hf_dit)
+parameterization: mean   # Specifies that the network predicts the data expectation (x_1).
+                         # For one-hot text data, predicting the "mean" is mathematically
+                         # equivalent to predicting the categorical token probabilities.
+time_conditioning: True  # Whether the backbone receives the current timestep 't' as input
+T: 0                     # Number of discrete steps. Set to 0 because (SM)FLM runs in continuous time.
+subs_masking: False      # Disables 'substituting' token masking (used in MDLM to replace [MASK] with a random token). Not needed for (SM)FLM.
+causal_attention: False  # Uses bidirectional attention (standard for diffusion/flow) instead of causal.
+ignore_bos: False        # Whether to exclude the Beginning-Of-Sequence (BOS) token from the loss computation.
+                         # False means we compute loss on the BOS token just like any other token.
+t_max: 1.0               # Maximum continuous time boundary for training
+t_min: 0.0               # Minimum continuous time boundary for training
+double_temb: False       # Disables double time-embeddings (only used in two-stage distillation for flow maps).
+learnable_loss_weighting: False  # If True, the model learns a dynamic per-timestep scalar to weight the loss.
+                                 # We set False to enforce the uniform theoretical weighting (omega_t = 1).
+
+# --- SM-FLM specific ---
+gamma_scale: 1.0         # 'c' in gamma(tau) = c*tau. Determines the final percentage of tokens committed.
+                         # 1.0 = all tokens commit by t=1. 0.0 = pure FLM (no discrete jumps).
+freeze_committed: True   # If True, zeroes out the flow velocity and jump probability for tokens that have already committed.

@@ -563,9 +563,6 @@ class DUO(DUO_BASE):
                                                             dalpha_t=dalpha_t,
                                                             low_var=False)
 
-
-
-
 class Distillation(DUO):
     def __init__(self, config, tokenizer):
         super().__init__(config, tokenizer)
@@ -687,7 +684,6 @@ class Distillation(DUO):
                  on_epoch=False,
                  sync_dist=True)
         return super().training_step(batch, batch_idx)
-
 
 class Rectification(DUO):  # Training as duo, without curriculum
     def __init__(self, config, tokenizer):
@@ -889,7 +885,7 @@ class FLMBase(trainer_base.TrainerBase):
         t = t.unsqueeze(-1).unsqueeze(-1)
         target_data = F.one_hot(x0, self.vocab_size).float()
         noise = torch.randn_like(target_data, dtype=torch.float32)
-        x_t = (1 - t) * noise + t * target_data
+        x_t = (1 - t) * noise + t * target_data # t=0 is pure noise, t=1 is pure target data. This convention is exactly opposite that of the discrete diffusion literature (MDLM, etc) and the implementation thereof (in this codebase).
         return x_t, target_data
 
     def load_state_dict(self, state_dict, strict=True):
@@ -1037,12 +1033,11 @@ class FLM(FLMBase):
              xT=None, given_t=None, not_sampling_t=False):
         del given_t, not_sampling_t, output_tokens
         B = x0.shape[0]
-        tau_t = self._sample_t_interval(B, current_accumulation_step,
-                                    t_min=self.t_min, t_max=self.t_max)
+        tau_t = self._sample_t_interval(B, current_accumulation_step, t_min=self.t_min, t_max=self.t_max)
         t = self._tau_to_t(tau_t)
         x_t, target_data = self.corrupt_continuous(x0, t)
-        f = self.forward(x_t, tau_t) #condition on tau_t
-        loss = -(target_data * f).sum(dim=-1)
+        f = self.forward(x_t, tau_t)
+        loss = -(target_data * f).sum(dim=-1) # cross-entropy
         self.log('loss', loss.mean(), prog_bar=True)
         if self.config.algo.learnable_loss_weighting is True:
             loss_weight = self.backbone.learnable_loss_weighting(tau_t)
@@ -1074,14 +1069,111 @@ class FLM(FLMBase):
             x_1_pred_probs = x_1_pred.exp()
 
             if i == num_steps - 1:
-                z = x_1_pred_probs
+                z = x_1_pred_probs # no edge case, but rather recognizing that dt = 1 - t_in in last step and v = (x_1_pred_probs - z) / (1.0 - t_in)
                 break
 
             v = (x_1_pred_probs - z) / (1.0 - t_in.view(-1, 1, 1) + 1e-5)
             z = z + dt.view(-1, 1, 1) * v
 
-        return z.argmax(dim=-1)
-    
+        return z.argmax(dim=-1) # rounding to discrete sequence, noise / temperature are already present in x_0 ~ N(0, I)
+
+class SMFLM(FLMBase):
+    def __init__(self, config, tokenizer):
+        super().__init__(config, tokenizer)
+        if hasattr(tokenizer, 'mask_token') and tokenizer.mask_token is not None:
+            self.mask_token = tokenizer.mask_token_id
+        else:
+            self.mask_token = self.vocab_size
+        self.freeze_committed = getattr(config.algo, 'freeze_committed', True)
+        gamma_scale = getattr(config.algo, 'gamma_scale', 1.0)
+        self.gamma_schedule = trainer_base.LinearGammaSchedule(gamma_scale)
+
+    def corrupt_hybrid(self, x0, tau_t):
+        # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
+        t = self._tau_to_t(tau_t)
+        gamma, _ = self.gamma_schedule(tau_t)
+        committed = torch.rand(x0.shape[0], x0.shape[1], device=self.device) < gamma[:, None]
+        x_gauss, one_hot = self.corrupt_continuous(x0, t)
+        x_gauss[committed] = one_hot[committed]
+        return x_gauss, one_hot
+
+    def loss(self, x0, output_tokens,
+             current_accumulation_step=None, train_mode=False,
+             xT=None, given_t=None, not_sampling_t=False):
+        del output_tokens, xT, given_t, not_sampling_t
+        B = x0.shape[0]
+        tau_t = self._sample_t_interval(B, current_accumulation_step,
+                                    t_min=self.t_min, t_max=self.t_max)
+        x_t, x_data = self.corrupt_hybrid(x0, tau_t) # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
+        f = self.forward(x_t, tau_t) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
+        loss_ce = -(x_data * f).sum(dim=-1) # cross-entropy loss
+        self.log('loss', loss_ce.mean(), prog_bar=True)
+        if self.config.algo.learnable_loss_weighting is True:
+            loss_weight = self.backbone.learnable_loss_weighting(tau_t)
+            loss_weight = loss_weight.unsqueeze(-1)
+            loss_ce = torch.exp(-loss_weight) * loss_ce + loss_weight
+            self.log('loss_weighted', loss_ce.mean(), prog_bar=True)
+        return loss_ce
+
+    def nll(self, input_tokens, output_tokens,
+            current_accumulation_step=None, train_mode=False):
+        # NOTE: Flow Matching minimizes vector field regression (MSE / Cross-Entropy),
+        # which does NOT form a strict variational Evidence Lower Bound (ELBO) on the true 
+        # Negative Log-Likelihood like it does in Discrete Diffusion Models.
+        # This function is technically a misnomer. It is kept merely as a structural shim 
+        # so evaluation scripts have a uniform proxy metric to call across all model types.
+        return self.loss(input_tokens, output_tokens, current_accumulation_step, train_mode)
+
+    @torch.no_grad()
+    def generate_samples(self, num_samples, num_steps=None, eps=1e-5):
+        if num_steps is None:
+            num_steps = self.config.sampling.steps
+        B = num_samples
+        V = self.vocab_size
+        L = self.num_tokens
+        device = self.device
+
+        z = torch.randn((B, L, V), device=device, dtype=self.dtype)
+        draft = torch.full((B, L), self.mask_token, dtype=torch.long, device=device)
+
+        tau_vals = torch.linspace(0.0, 1.0, num_steps + 1, device=device)
+
+        for i in range(num_steps):
+            tau_curr = tau_vals[i]
+            tau_next = tau_vals[i + 1]
+            dtau = 1.0 / num_steps
+            t_curr = self._tau_to_t(tau_curr.expand(B))
+            dt = self._tau_to_t(tau_next.expand(B)) - t_curr
+
+            gamma, dgamma_dtau = self.gamma_schedule(tau_curr.expand(B))
+            # The jump rate w.r.t continuous time t is lambda_t = (dgamma/dt) / (1 - gamma)
+            # By the chain rule, jump_prob = lambda_t * dt = [ (dgamma/dtau * dtau/dt) / (1 - gamma) ] * (dt/dtau * dtau)
+            # The dt/dtau derivatives perfectly cancel out, leaving exactly: dgamma_dtau * dtau / (1 - gamma)
+            # This avoids having to numerically compute unstable dt/dtau gradients through the schedule LUTs!
+            jump_prob = dgamma_dtau * dtau / torch.clamp(1.0 - gamma, min=eps)
+
+            log_probs = self.forward(z, tau_curr.expand(B))
+            probs = log_probs.exp()
+
+            soft = (draft == self.mask_token)
+            
+            v = (probs - z) * (1.0 / torch.clamp(1.0 - t_curr.view(-1, 1, 1), min=eps)) # (probs - z) * dbeta_t/dt/(1 - beta_t)
+            if self.freeze_committed:
+                v[~soft] = 0.0
+            z = z + dt.view(-1, 1, 1) * v
+
+            jump = soft & (torch.rand(B, L, device=device) < jump_prob[:, None])
+            if jump.any():
+                committed_tokens = probs[jump].multinomial(1).squeeze(-1)
+                draft[jump] = committed_tokens
+                z[jump] = F.one_hot(committed_tokens, V).to(z.dtype)
+
+        remaining = (draft == self.mask_token)
+        if remaining.any():
+            draft[remaining] = probs.argmax(-1)[remaining]
+
+        return draft
+
 class FMLM(FLMBase):
     def __init__(self, config, tokenizer):
         super().__init__(config, tokenizer)
