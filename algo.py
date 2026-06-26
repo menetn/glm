@@ -373,21 +373,17 @@ class DUO_BASE(trainer_base.UniformState):
         if torch.is_tensor(dalpha_t) and dalpha_t.ndim == 1:
             dalpha_t = dalpha_t.unsqueeze(-1)
         assert not torch.is_tensor(dalpha_t) or dalpha_t.ndim == 2
+        x_reconst = log_x_theta.exp()  # convert logits to probabilities
+        x_bar_theta = self.vocab_size * alpha_t[
+            :, :, None] * x_reconst + 1 - alpha_t[:, :, None]
         coeff = dalpha_t / (self.vocab_size * alpha_t)
         x_eq_xt = (x0 == xt).float()
         x_neq_xt = 1 - x_eq_xt
         xbar_xt = (1 - alpha_t) + self.vocab_size * alpha_t * x_eq_xt
-
-        # Compute gathered terms directly from logits to save memory
-        log_x_theta_xt = torch.gather(log_x_theta, -1, xt.unsqueeze(-1)).squeeze(-1)
-        log_x_theta_x = torch.gather(log_x_theta, -1, x0.unsqueeze(-1)).squeeze(-1)
-        
-        x_reconst_xt = log_x_theta_xt.exp()
-        x_reconst_x = log_x_theta_x.exp()
-
-        xbar_theta_xt = self.vocab_size * alpha_t * x_reconst_xt + 1 - alpha_t
-        xbar_theta_x = self.vocab_size * alpha_t * x_reconst_x + 1 - alpha_t
-
+        xbar_theta_xt = torch.gather(
+            x_bar_theta, -1, xt.unsqueeze(-1)).squeeze(-1)
+        xbar_theta_x = torch.gather(
+            x_bar_theta, -1, x0.unsqueeze(-1)).squeeze(-1)
         term1 = self.vocab_size * (1 / xbar_xt
                                    - 1 / xbar_theta_xt)  # Eq 5. term 1
 
@@ -396,10 +392,6 @@ class DUO_BASE(trainer_base.UniformState):
         term2_coefs = x_eq_xt * const + x_neq_xt
         term2_offset = ((self.vocab_size - 1) * const * x_eq_xt
                         - (1 / const) * x_neq_xt) * const.log()
-
-        x_reconst = log_x_theta.exp()
-        x_bar_theta = self.vocab_size * alpha_t[:, :, None] * x_reconst + 1 - alpha_t[:, :, None]
-
         term2_theta = - term2_coefs * (
             x_bar_theta.log().sum(-1)
             - self.vocab_size * xbar_theta_xt.log())
