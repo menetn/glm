@@ -16,6 +16,7 @@ python -u -m main \
   wandb.name=owt_full_mdlm \
   model=small \
   algo=mdlm \
+  sampling.predictor=ancestral_cache \
   model.length=1024 \
   sampling.num_sample_batches=1 \
   sampling.steps=[1024] \

@@ -660,6 +660,7 @@ class Diffusion(TrainerBase):
 
         dalpha_t, alpha_t = self.noise(t)
         alpha_t = alpha_t.unsqueeze(-1)
+        dalpha_t = dalpha_t.unsqueeze(-1)
         assert alpha_t.ndim == 2
         sigma = self._sigma_from_alphat(alpha_t)
 
