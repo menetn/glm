@@ -1,30 +1,25 @@
 #!/bin/bash
-#SBATCH -J train_mdlm                 # Job name
-#SBATCH -o watch_folder/%x_%j.out     # output file (%j expands to jobID)
-#SBATCH -N 1                          # Total number of nodes requested
-#SBATCH --get-user-env                # retrieve the users login environment
-#SBATCH --mem=32000                   # server memory requested (per node)
-#SBATCH -t 960:00:00                  # Time limit (hh:mm:ss)
-#SBATCH --partition=anonymous          # Request partition
-#SBATCH --constraint="[a5000|a6000|a100|3090]"
-#SBATCH --constraint="gpu-mid|gpu-high"
-#SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:1                  # Type/number of GPUs needed
-#SBATCH --open-mode=append            # Do not overwrite logs
-#SBATCH --requeue                     # Requeue upon pre-emption
 
-# To enable preemption re-loading, set `hydra.run.dir` or 
-# `checkpointing.save_dir` explicitly.
+DATA_DIR="YOUR_DATA_DIR"
+
 CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
 
-srun python -u -m main \
+python -u -m main \
   checkpointing.save_dir=$CHECKPOINT_DIR \
-  loader.batch_size=2 \
-  loader.eval_batch_size=2 \
-  model=small \
+  checkpointing.resume_from_ckpt=True \
+  loader.global_batch_size=512 \
+  loader.batch_size=32 \
+  loader.eval_batch_size=32 \
   data=openwebtext-split \
-  wandb.name=mdlm-owt \
+  data.cache_dir=$DATA_DIR \
+  wandb.project=owt_full \
+  wandb.name=owt_full_mdlm \
+  model=small \
   algo=mdlm \
   model.length=1024 \
-  eval.compute_generative_perplexity=False \
-  +wandb.offline=True
+  sampling.num_sample_batches=1 \
+  trainer.max_steps=1500000 \
+  trainer.precision=bf16 \
+  optim.lr=3e-4 \
+  trainer.val_check_interval=5000 \
+  callbacks.checkpoint_every_n_steps.every_n_train_steps=20000
