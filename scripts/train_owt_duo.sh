@@ -8,8 +8,8 @@ python -u -m main \
   checkpointing.save_dir=$CHECKPOINT_DIR \
   checkpointing.resume_from_ckpt=True \
   loader.global_batch_size=512 \
-  loader.batch_size=32 \
-  loader.eval_batch_size=32 \
+  loader.batch_size=16 \
+  loader.eval_batch_size=16 \
   data=openwebtext-split \
   data.cache_dir=$DATA_DIR \
   wandb.project=owt_full \
