@@ -18,6 +18,7 @@ python -u -m main \
   algo=sedd \
   model.length=1024 \
   sampling.num_sample_batches=1 \
+  sampling.steps=[1024] \
   sampling.predictor=analytic \
   trainer.max_steps=1500000 \
   trainer.precision=bf16 \
