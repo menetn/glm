@@ -1102,7 +1102,7 @@ class SMFLM(FLMBase):
         gamma, _ = self.gamma_schedule(tau_t)
         committed = torch.rand(x0.shape[0], x0.shape[1], device=self.device) < gamma[:, None]
         x_hybrid, one_hot = self.corrupt_continuous(x0, t)
-        torch.where(committed.unsqueeze(-1), one_hot, x_hybrid, out=x_hybrid) # in-place memory efficient selection
+        x_hybrid = torch.where(committed.unsqueeze(-1), one_hot, x_hybrid) # pure functional selection, prevents torch.compile deadlocks
         return x_hybrid, one_hot
 
     def loss(self, x0, output_tokens,
