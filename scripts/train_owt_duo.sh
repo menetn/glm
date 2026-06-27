@@ -14,7 +14,7 @@ python -u -m main \
   data.cache_dir=$DATA_DIR \
   seed=2 \
   wandb.project=owt_full \
-  wandb.name=owt_full_duo_seed_2 \
+  wandb.name=owt_full_duo \
   model=small \
   algo=duo \
   model.length=1024 \
