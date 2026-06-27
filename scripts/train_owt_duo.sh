@@ -2,7 +2,7 @@
 
 DATA_DIR="YOUR_DATA_DIR"
 
-CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
+CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR_seed_2"
 
 python -u -m main \
   checkpointing.save_dir=$CHECKPOINT_DIR \
@@ -12,8 +12,9 @@ python -u -m main \
   loader.eval_batch_size=16 \
   data=openwebtext-split \
   data.cache_dir=$DATA_DIR \
+  seed=2 \
   wandb.project=owt_full \
-  wandb.name=owt_full_duo \
+  wandb.name=owt_full_duo_seed_2 \
   model=small \
   algo=duo \
   model.length=1024 \
