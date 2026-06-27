@@ -3,6 +3,11 @@ TEACHER_PATH="YOUR_FLM_CHECKPOINT_PATH"
 
 CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
 
+if [ "$DATA_DIR" = "YOUR_DATA_DIR" ] || [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
+    echo "Error: DATA_DIR and CHECKPOINT_DIR must be set"
+    exit 1
+fi
+
 python -u -m main \
   checkpointing.save_dir=$CHECKPOINT_DIR \
     loader.global_batch_size=128 \
