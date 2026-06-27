@@ -1104,6 +1104,12 @@ class SMFLM(FLMBase):
         B = x0.shape[0]
         tau_t = self._sample_t_interval(B, current_accumulation_step,
                                     t_min=self.t_min, t_max=self.t_max)
+        
+        if getattr(self.config.algo, 'linearize_schedule', False):
+            # Warp time tau to linearize the combined expected signal of discrete jump and continuous flow
+            # Expected signal becomes: tau_eff + (1 - tau_eff) * tau_eff = 2*tau_eff - tau_eff^2 = tau
+            tau_t = 1.0 - torch.sqrt(1.0 - tau_t + 1e-8)
+            
         x_t, x_data = self.corrupt_hybrid(x0, tau_t) # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
         f = self.forward(x_t, tau_t) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
         loss_ce = -(x_data * f).sum(dim=-1) # cross-entropy loss
@@ -1137,11 +1143,16 @@ class SMFLM(FLMBase):
         draft = torch.full((B, L), self.mask_token, dtype=torch.long, device=device)
 
         tau_vals = torch.linspace(0.0, 1.0, num_steps + 1, device=device)
+        
+        if getattr(self.config.algo, 'linearize_schedule', False):
+            # Warp sampling time tau_vals to match the linearized expected signal used during training
+            # The dynamic step size (dtau = tau_next - tau_curr) naturally preserves exact jump probabilities
+            tau_vals = 1.0 - torch.sqrt(1.0 - tau_vals + 1e-8)
 
         for i in range(num_steps):
             tau_curr = tau_vals[i]
             tau_next = tau_vals[i + 1]
-            dtau = 1.0 / num_steps
+            dtau = tau_next - tau_curr
             t_curr = self._tau_to_t(tau_curr.expand(B))
             dt = self._tau_to_t(tau_next.expand(B)) - t_curr
 
