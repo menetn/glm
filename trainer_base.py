@@ -836,8 +836,7 @@ class AbsorbingState(Diffusion):
         return self.mask_index * torch.ones(
             * batch_dims, dtype=torch.int64, device=self.device)
 
-    def _ancestral_update(self, x, t, dt, p_x0=None,
-                          noise_removal_step=False):
+    def _ancestral_update(self, x, t, dt, p_x0=None, noise_removal_step=False):
         _, alpha_t = self.noise(t)
         if noise_removal_step:
             alpha_s = torch.ones_like(alpha_t)
@@ -845,8 +844,7 @@ class AbsorbingState(Diffusion):
             _, alpha_s = self.noise(t - dt)
         assert alpha_t.ndim == 2
         if p_x0 is None:
-            p_x0 = self.forward(
-                x, self._sigma_from_alphat(alpha_t)).exp()
+            p_x0 = self.forward(x, self._sigma_from_alphat(alpha_t)).exp()
             if self.p_nucleus < 1.0:
                 sorted_probs, sorted_indices = torch.sort(p_x0, descending=True, dim=-1)
                 cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
