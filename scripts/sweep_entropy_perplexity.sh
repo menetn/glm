@@ -3,6 +3,7 @@
 # Check arguments
 if [ "$#" -lt 4 ]; then
     echo "Usage: $0 <algo> <ckpt_path> <steps> <data_dir> [out_dir] [bsub_template]"
+    echo "  <algo>: mdlm | sedd | duo_base | flm | smflm | fmlm | fmlm_twomodel | fmlm_twostage"
     exit 1
 fi
 
@@ -28,19 +29,13 @@ for val in "${VALUES[@]}"; do
     # Define JSON output path
     json_path="${OUT_DIR}/${ALGO}_T-${STEPS}_${PARAM_NAME}-${val}.json"
     
-    # Configure algo name, predictor, and extra flags based on algorithm
-    ALGO_CFG="$ALGO"
-    EXTRA_FLAGS=""
+    # Set predictor based on algorithm (pass the exact Hydra config name as <algo>)
     if [ "$ALGO" = "mdlm" ]; then
         PREDICTOR="sampling.predictor=ancestral_cache"
     elif [ "$ALGO" = "sedd" ]; then
         PREDICTOR="sampling.predictor=analytic"
-    elif [ "$ALGO" = "duo" ]; then
-        # duo_base is the correct config name for the pretrained DUO model;
-        # use_curriculum=True switches off the Gumbel curriculum at eval time.
-        ALGO_CFG="duo_base"
+    elif [ "$ALGO" = "duo_base" ]; then
         PREDICTOR="sampling.predictor=ancestral"
-        EXTRA_FLAGS="+algo.use_curriculum=True"
     else
         PREDICTOR=""
     fi
@@ -51,7 +46,7 @@ for val in "${VALUES[@]}"; do
         data.cache_dir=\"$DATA_DIR\" \
         model=small \
         model.length=1024 \
-        algo=\"$ALGO_CFG\" \
+        algo=\"$ALGO\" \
         eval.checkpoint_path=\"$CKPT_PATH\" \
         eval.disable_ema=False \
         eval.compute_generative_perplexity=True \
@@ -63,7 +58,6 @@ for val in "${VALUES[@]}"; do
         sampling.temperature=1.0 \
         sampling.p_nucleus=\"$val\" \
         $PREDICTOR \
-        $EXTRA_FLAGS \
         eval.generated_samples_path=\"$json_path\" \
         +wandb.offline=true"
 
