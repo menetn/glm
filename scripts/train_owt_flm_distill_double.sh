@@ -22,7 +22,7 @@ python -u -m main \
     algo=fmlm_twostage \
     algo.teacher_f_path=$TEACHER_F_PATH \
     algo.teacher_g_path=$TEACHER_G_PATH \
-    trainer.max_steps=1000000 \
+    trainer.max_steps=100000 \
     trainer.precision=bf16 \
     trainer.val_check_interval=5000 \
     model.length=1024 \

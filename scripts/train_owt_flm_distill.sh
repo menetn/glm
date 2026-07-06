@@ -20,7 +20,7 @@ python -u -m main \
     model=small \
     algo=fmlm_twomodel \
     algo.teacher_path=$TEACHER_PATH \
-    trainer.max_steps=1000000 \
+    trainer.max_steps=100000 \
     trainer.precision=bf16 \
     trainer.val_check_interval=10000 \
     model.length=1024 \

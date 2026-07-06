@@ -5,7 +5,7 @@ DATA_CACHE_DIR="YOUR_DATA_DIR"
 
 CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
 
-if [ "$DATA_DIR" = "YOUR_DATA_DIR" ] || [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
+if [ "$DATA_CACHE_DIR" = "YOUR_DATA_DIR" ] || [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
     echo "Error: DATA_DIR and CHECKPOINT_DIR must be set"
     exit 1
 fi
@@ -32,7 +32,7 @@ python -u -m main \
   algo.teacher_path=${TEACHER_PATH} \
   algo.initialize_student_from_teacher=True \
   sampling.steps=[1,2,4,8,16,32,64,128] \
-  trainer.max_steps=1000000 \
+  trainer.max_steps=100000 \
   trainer.precision=bf16 \
   trainer.val_check_interval=10000 \
   trainer.limit_val_batches=10 \
