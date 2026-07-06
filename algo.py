@@ -1164,7 +1164,17 @@ class SMFLM(FLMBase):
             jump_prob = dgamma_dtau * dtau / torch.clamp(1.0 - gamma, min=eps)
 
             log_probs = self.forward(z, tau_curr.expand(B))
+            if self.config.sampling.temperature != 1.0:
+                log_probs = log_probs / self.config.sampling.temperature
             probs = log_probs.exp()
+            if self.p_nucleus < 1.0:
+                sorted_probs, sorted_indices = torch.sort(probs, descending=True, dim=-1)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                top_p_mask = cumulative_probs <= self.p_nucleus
+                top_p_mask[..., 0] = True
+                nucleus_probs = sorted_probs * top_p_mask
+                nucleus_probs /= nucleus_probs.sum(dim=-1, keepdim=True)
+                probs = torch.zeros_like(probs).scatter_(-1, sorted_indices, nucleus_probs)
 
             soft = (draft == self.mask_token)
             

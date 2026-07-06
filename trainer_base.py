@@ -847,10 +847,18 @@ class AbsorbingState(Diffusion):
         if p_x0 is None:
             p_x0 = self.forward(
                 x, self._sigma_from_alphat(alpha_t)).exp()
+            if self.p_nucleus < 1.0:
+                sorted_probs, sorted_indices = torch.sort(p_x0, descending=True, dim=-1)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                top_p_mask = cumulative_probs <= self.p_nucleus
+                top_p_mask[..., 0] = True
+                nucleus_probs = sorted_probs * top_p_mask
+                nucleus_probs /= nucleus_probs.sum(dim=-1, keepdim=True)
+                p_x0 = torch.zeros_like(p_x0).scatter_(-1, sorted_indices, nucleus_probs)
 
         q_xs = p_x0 * (alpha_s - alpha_t)[:, :, None]
         q_xs[:, :, self.mask_index] = 1 - alpha_s
-        _x = sample_categorical(q_xs)
+        _x = sample_categorical(q_xs, temperature=self.config.sampling.temperature)
 
         copy_flag = (x != self.mask_index).to(x.dtype)
         return p_x0, copy_flag * x + (1 - copy_flag) * _x
