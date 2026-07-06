@@ -22,3 +22,4 @@ gamma_scale: 1.0         # 'c' in gamma(tau) = c*tau. Determines the final perce
                          # 1.0 = all tokens commit by t=1. 0.0 = pure FLM (no discrete jumps).
 freeze_committed: True   # If True, zeroes out the flow velocity and jump probability for tokens that have already committed.
 linearize_schedule: True # If True, applies a square root time warp to global curriculum time tau to linearize the combined information release.
+use_mask_embedding: False # If True, adds a learnable mask_embedding to all uncommitted tokens.

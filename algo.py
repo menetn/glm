@@ -1121,7 +1121,8 @@ class SMFLM(FLMBase):
             tau_t = 1.0 - torch.sqrt(torch.clamp(1.0 - tau_t, min=0.0))
             
         x_t, x_data, committed = self.corrupt_hybrid(x0, tau_t) # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
-        f = self.forward(x_t, tau_t, uncommitted_mask=~committed) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
+        use_bias = getattr(self.config.algo, 'use_mask_embedding', False)
+        f = self.forward(x_t, tau_t, uncommitted_mask=~committed if use_bias else None) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
         loss_ce = -(x_data * f).sum(dim=-1) # cross-entropy loss
         self.log('loss', loss_ce.mean(), prog_bar=True)
         if self.config.algo.learnable_loss_weighting is True:
@@ -1174,7 +1175,8 @@ class SMFLM(FLMBase):
             jump_prob = dgamma_dtau * dtau / torch.clamp(1.0 - gamma, min=eps)
 
             soft = (draft == self.mask_token)
-            log_probs = self.forward(z, tau_curr.expand(B), uncommitted_mask=soft)
+            use_bias = getattr(self.config.algo, 'use_mask_embedding', False)
+            log_probs = self.forward(z, tau_curr.expand(B), uncommitted_mask=soft if use_bias else None)
             if self.config.sampling.temperature != 1.0:
                 log_probs = log_probs / self.config.sampling.temperature
             probs = log_probs.exp()
