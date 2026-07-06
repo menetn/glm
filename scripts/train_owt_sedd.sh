@@ -25,7 +25,7 @@ python -u -m main \
   sampling.num_sample_batches=1 \
   sampling.steps=[1024] \
   sampling.predictor=analytic \
-  trainer.max_steps=1500000 \
+  trainer.max_steps=1000000 \
   trainer.precision=bf16 \
   optim.lr=3e-4 \
   trainer.val_check_interval=5000 \
