@@ -3,7 +3,7 @@
 # Check arguments
 if [ "$#" -lt 4 ]; then
     echo "Usage: $0 <algo> <ckpt_path> <steps> <data_dir> [out_dir] [bsub_template]"
-    echo "  <algo>: mdlm | sedd | duo_base | flm | smflm | fmlm | fmlm_twomodel | fmlm_twostage"
+    echo "  <algo>: mdlm | sedd | duo | duo_base | flm | smflm | fmlm | fmlm_twomodel | fmlm_twostage"
     exit 1
 fi
 
@@ -34,7 +34,7 @@ for val in "${VALUES[@]}"; do
         PREDICTOR="sampling.predictor=ancestral_cache"
     elif [ "$ALGO" = "sedd" ]; then
         PREDICTOR="sampling.predictor=analytic"
-    elif [ "$ALGO" = "duo_base" ]; then
+    elif [ "$ALGO" = "duo" ] || [ "$ALGO" = "duo_base" ]; then
         PREDICTOR="sampling.predictor=ancestral"
     else
         PREDICTOR=""
