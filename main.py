@@ -147,8 +147,10 @@ def _generate_samples(diffusion_model, config, logger,
     samples_path = config.eval.generated_samples_path
     with fsspec.open(samples_path, 'w') as f:
         json.dump({'generative_ppl': generative_ppl,
+                   'gen_ppl': generative_ppl,
                    'entropy': entropy,
-                   'generated_seqs': all_samples}, f, indent=4)
+                   'generated_seqs': all_samples,
+                   'text_samples': all_samples}, f, indent=4)
     print('Samples saved at:', samples_path)
 
 
