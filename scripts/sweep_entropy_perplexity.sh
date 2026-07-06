@@ -15,16 +15,9 @@ BSUB_TEMPLATE=$6
 
 mkdir -p "$OUT_DIR"
 
-# Decide sweep parameter depending on the model type
-# For pure continuous flow models (flm), we sweep temperature.
-# For discrete/hybrid models (mdlm, sedd, duo, smflm), we sweep p_nucleus.
-if [ "$ALGO" = "flm" ]; then
-    PARAM_NAME="temperature"
-    VALUES=(0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5)
-else
-    PARAM_NAME="p_nucleus"
-    VALUES=(0.8 0.825 0.85 0.875 0.9 0.925 0.95 0.975 1.0)
-fi
+# All models (including FLM) now support p_nucleus (top-p) filtering to control entropy-perplexity tradeoff
+PARAM_NAME="p_nucleus"
+VALUES=(0.8 0.825 0.85 0.875 0.9 0.925 0.95 0.975 1.0)
 
 echo "Starting evaluation sweep for $ALGO (T = $STEPS steps) using checkpoint $CKPT_PATH"
 echo "Sweeping $PARAM_NAME over: ${VALUES[*]}"
@@ -35,59 +28,44 @@ for val in "${VALUES[@]}"; do
     # Define JSON output path
     json_path="${OUT_DIR}/${ALGO}_T-${STEPS}_${PARAM_NAME}-${val}.json"
     
-    # Configure predictor based on algorithm
+    # Configure algo name, predictor, and extra flags based on algorithm
+    ALGO_CFG="$ALGO"
+    EXTRA_FLAGS=""
     if [ "$ALGO" = "mdlm" ]; then
         PREDICTOR="sampling.predictor=ancestral_cache"
     elif [ "$ALGO" = "sedd" ]; then
         PREDICTOR="sampling.predictor=analytic"
+    elif [ "$ALGO" = "duo" ]; then
+        # duo_base is the correct config name for the pretrained DUO model;
+        # use_curriculum=True switches off the Gumbel curriculum at eval time.
+        ALGO_CFG="duo_base"
+        PREDICTOR="sampling.predictor=ancestral"
+        EXTRA_FLAGS="+algo.use_curriculum=True"
     else
         PREDICTOR=""
     fi
 
-    # Configure command depending on sweep parameter
-    if [ "$PARAM_NAME" = "temperature" ]; then
-        cmd="python -u -m main \
-            mode=sample_eval \
-            data=openwebtext-split \
-            data.cache_dir=\"$DATA_DIR\" \
-            model=small \
-            model.length=1024 \
-            algo=\"$ALGO\" \
-            eval.checkpoint_path=\"$CKPT_PATH\" \
-            eval.disable_ema=False \
-            eval.compute_generative_perplexity=True \
-            eval.perplexity_batch_size=16 \
-            loader.batch_size=16 \
-            loader.eval_batch_size=16 \
-            sampling.num_sample_batches=4 \
-            sampling.steps=\"$STEPS\" \
-            sampling.temperature=\"$val\" \
-            sampling.p_nucleus=1.0 \
-            $PREDICTOR \
-            eval.generated_samples_path=\"$json_path\" \
-            +wandb.offline=true"
-    else
-        cmd="python -u -m main \
-            mode=sample_eval \
-            data=openwebtext-split \
-            data.cache_dir=\"$DATA_DIR\" \
-            model=small \
-            model.length=1024 \
-            algo=\"$ALGO\" \
-            eval.checkpoint_path=\"$CKPT_PATH\" \
-            eval.disable_ema=False \
-            eval.compute_generative_perplexity=True \
-            eval.perplexity_batch_size=16 \
-            loader.batch_size=16 \
-            loader.eval_batch_size=16 \
-            sampling.num_sample_batches=4 \
-            sampling.steps=\"$STEPS\" \
-            sampling.temperature=1.0 \
-            sampling.p_nucleus=\"$val\" \
-            $PREDICTOR \
-            eval.generated_samples_path=\"$json_path\" \
-            +wandb.offline=true"
-    fi
+    cmd="python -u -m main \
+        mode=sample_eval \
+        data=openwebtext-split \
+        data.cache_dir=\"$DATA_DIR\" \
+        model=small \
+        model.length=1024 \
+        algo=\"$ALGO_CFG\" \
+        eval.checkpoint_path=\"$CKPT_PATH\" \
+        eval.disable_ema=False \
+        eval.compute_generative_perplexity=True \
+        eval.perplexity_batch_size=16 \
+        loader.batch_size=16 \
+        loader.eval_batch_size=16 \
+        sampling.num_sample_batches=4 \
+        sampling.steps=\"$STEPS\" \
+        sampling.temperature=1.0 \
+        sampling.p_nucleus=\"$val\" \
+        $PREDICTOR \
+        $EXTRA_FLAGS \
+        eval.generated_samples_path=\"$json_path\" \
+        +wandb.offline=true"
 
     if [ -n "$BSUB_TEMPLATE" ]; then
         # When submitting via bsub, explicitly run through micromamba to activate the environment
