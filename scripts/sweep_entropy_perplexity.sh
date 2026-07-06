@@ -31,12 +31,8 @@ echo "Sweeping $PARAM_NAME over: ${VALUES[*]}"
 for val in "${VALUES[@]}"; do
     echo "Running: $PARAM_NAME = $val"
     
-    # Define JSON output path aligned with the plotting notebook's glob patterns
-    if [ "$PARAM_NAME" = "temperature" ]; then
-        json_path="${OUT_DIR}/${ALGO}_T-${STEPS}_temp-${val}.json"
-    else
-        json_path="${OUT_DIR}/${ALGO}_T-${STEPS}_topp-${val}.json"
-    fi
+    # Define JSON output path
+    json_path="${OUT_DIR}/${ALGO}_T-${STEPS}_${PARAM_NAME}-${val}.json"
     
     # Configure command depending on sweep parameter
     if [ "$PARAM_NAME" = "temperature" ]; then
