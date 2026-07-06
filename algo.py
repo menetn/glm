@@ -1066,7 +1066,17 @@ class FLM(FLMBase):
             t_in = self._tau_to_t(tau_t_in)
             dt = self._tau_to_t(tau_t_next.expand(B)) - t_in
             x_1_pred = self.forward(z, tau_t_in)
+            if self.config.sampling.temperature != 1.0:
+                x_1_pred = x_1_pred / self.config.sampling.temperature
             x_1_pred_probs = x_1_pred.exp()
+            if self.p_nucleus < 1.0:
+                sorted_probs, sorted_indices = torch.sort(x_1_pred_probs, descending=True, dim=-1)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                top_p_mask = cumulative_probs <= self.p_nucleus
+                top_p_mask[..., 0] = True
+                nucleus_probs = sorted_probs * top_p_mask
+                nucleus_probs /= nucleus_probs.sum(dim=-1, keepdim=True)
+                x_1_pred_probs = torch.zeros_like(x_1_pred_probs).scatter_(-1, sorted_indices, nucleus_probs)
 
             if i == num_steps - 1:
                 z = x_1_pred_probs # no edge case, but rather recognizing that dt = 1 - t_in in last step and v = (x_1_pred_probs - z) / (1.0 - t_in)
@@ -1658,7 +1668,17 @@ class FMLM(FLMBase):
             tau_tilde = self._t_to_tau(t_tilde)
 
             log_D_st_pred = self.forward(z, tau_curr.expand(B), tau_tilde)
+            if self.config.sampling.temperature != 1.0:
+                log_D_st_pred = log_D_st_pred / self.config.sampling.temperature
             D_st_pred = log_D_st_pred.exp()
+            if self.p_nucleus < 1.0:
+                sorted_probs, sorted_indices = torch.sort(D_st_pred, descending=True, dim=-1)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                top_p_mask = cumulative_probs <= self.p_nucleus
+                top_p_mask[..., 0] = True
+                nucleus_probs = sorted_probs * top_p_mask
+                nucleus_probs /= nucleus_probs.sum(dim=-1, keepdim=True)
+                D_st_pred = torch.zeros_like(D_st_pred).scatter_(-1, sorted_indices, nucleus_probs)
 
             if i == num_steps - 1:
                 z = D_st_pred
@@ -1817,7 +1837,18 @@ class FMLM_TwoModel(FLMBase):
             t_in = self._tau_to_t(tau_in)
             dt_in = self._tau_to_t(tau_next.expand(B)) - t_in
 
-            x_1_pred_fm = self.teacher_forward(z, tau_in).exp()
+            x_1_pred_fm = self.teacher_forward(z, tau_in)
+            if self.config.sampling.temperature != 1.0:
+                x_1_pred_fm = x_1_pred_fm / self.config.sampling.temperature
+            x_1_pred_fm = x_1_pred_fm.exp()
+            if self.p_nucleus < 1.0:
+                sorted_probs, sorted_indices = torch.sort(x_1_pred_fm, descending=True, dim=-1)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                top_p_mask = cumulative_probs <= self.p_nucleus
+                top_p_mask[..., 0] = True
+                nucleus_probs = sorted_probs * top_p_mask
+                nucleus_probs /= nucleus_probs.sum(dim=-1, keepdim=True)
+                x_1_pred_fm = torch.zeros_like(x_1_pred_fm).scatter_(-1, sorted_indices, nucleus_probs)
             x_1_pred_sc = self.forward_no_softmax(z, tau_in, tau_next.expand(B))
             v_pred = (x_1_pred_fm - z) / (1.0 - t_in.view(-1, 1, 1) + eps)
             z = (z + v_pred * dt_in.view(-1, 1, 1)
@@ -1957,7 +1988,17 @@ class FMLM_TwoStage(FLMBase):
             tau_tilde = self._t_to_tau(t_tilde)
 
             log_D_st_pred = self.forward(z, tau_curr.expand(B), tau_tilde)
+            if self.config.sampling.temperature != 1.0:
+                log_D_st_pred = log_D_st_pred / self.config.sampling.temperature
             D_st_pred = log_D_st_pred.exp()
+            if self.p_nucleus < 1.0:
+                sorted_probs, sorted_indices = torch.sort(D_st_pred, descending=True, dim=-1)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                top_p_mask = cumulative_probs <= self.p_nucleus
+                top_p_mask[..., 0] = True
+                nucleus_probs = sorted_probs * top_p_mask
+                nucleus_probs /= nucleus_probs.sum(dim=-1, keepdim=True)
+                D_st_pred = torch.zeros_like(D_st_pred).scatter_(-1, sorted_indices, nucleus_probs)
 
             if i == num_steps - 1:
                 z = D_st_pred
