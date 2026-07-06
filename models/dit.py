@@ -516,15 +516,20 @@ class EmbeddingLayer(nn.Module):
         super().__init__()
         self.embedding = nn.Parameter(torch.empty((vocab_dim, dim)))
         torch.nn.init.kaiming_uniform_(self.embedding, a=math.sqrt(5))
+        self.mask_embedding = nn.Parameter(torch.zeros(dim))
 
-    def forward(self, x):
+    def forward(self, x, uncommitted_mask=None):
         if x.ndim == 2:
-            return self.embedding[x]
-        assert x.ndim == 3
-        return torch.einsum(
-            "blv,ve->ble",
-            x.float(),
-            self.embedding.float()).to(x.dtype)
+            out = self.embedding[x]
+        else:
+            assert x.ndim == 3
+            out = torch.einsum(
+                "blv,ve->ble",
+                x.float(),
+                self.embedding.float()).to(x.dtype)
+        if uncommitted_mask is not None:
+            out = out + uncommitted_mask.unsqueeze(-1).to(out.dtype) * self.mask_embedding
+        return out
 
 
 class DDiTFinalLayer(nn.Module):
@@ -631,8 +636,8 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
             return bias_dropout_add_scale_fused_inference
     
     @torch_compile_deco
-    def forward(self, x, sigma, sigma_prime=None, use_jvp_attn=False):
-        x = self.vocab_embed(x)
+    def forward(self, x, sigma, sigma_prime=None, use_jvp_attn=False, uncommitted_mask=None):
+        x = self.vocab_embed(x, uncommitted_mask=uncommitted_mask)
             
         if self.causal:
             t_cond = None

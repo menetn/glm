@@ -1099,13 +1099,13 @@ class SMFLM(FLMBase):
         self.gamma_schedule = trainer_base.LinearGammaSchedule(gamma_scale)
 
     def corrupt_hybrid(self, x0, tau_t):
-        # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
+        # x0 = X1 is data, X0 is noise.
         t = self._tau_to_t(tau_t)
         gamma, _ = self.gamma_schedule(tau_t)
         committed = torch.rand(x0.shape[0], x0.shape[1], device=self.device) < gamma[:, None]
         x_hybrid, one_hot = self.corrupt_continuous(x0, t)
         x_hybrid = torch.where(committed.unsqueeze(-1), one_hot, x_hybrid) # pure functional selection, prevents torch.compile deadlocks
-        return x_hybrid, one_hot
+        return x_hybrid, one_hot, committed
 
     def loss(self, x0, output_tokens,
              current_accumulation_step=None, train_mode=False,
@@ -1120,8 +1120,8 @@ class SMFLM(FLMBase):
             # Expected signal becomes: tau_eff + (1 - tau_eff) * tau_eff = 2*tau_eff - tau_eff^2 = tau
             tau_t = 1.0 - torch.sqrt(torch.clamp(1.0 - tau_t, min=0.0))
             
-        x_t, x_data = self.corrupt_hybrid(x0, tau_t) # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
-        f = self.forward(x_t, tau_t) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
+        x_t, x_data, committed = self.corrupt_hybrid(x0, tau_t) # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
+        f = self.forward(x_t, tau_t, uncommitted_mask=~committed) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
         loss_ce = -(x_data * f).sum(dim=-1) # cross-entropy loss
         self.log('loss', loss_ce.mean(), prog_bar=True)
         if self.config.algo.learnable_loss_weighting is True:
@@ -1173,7 +1173,8 @@ class SMFLM(FLMBase):
             # This avoids having to numerically compute unstable dt/dtau gradients through the schedule LUTs!
             jump_prob = dgamma_dtau * dtau / torch.clamp(1.0 - gamma, min=eps)
 
-            log_probs = self.forward(z, tau_curr.expand(B))
+            soft = (draft == self.mask_token)
+            log_probs = self.forward(z, tau_curr.expand(B), uncommitted_mask=soft)
             if self.config.sampling.temperature != 1.0:
                 log_probs = log_probs / self.config.sampling.temperature
             probs = log_probs.exp()
@@ -1185,8 +1186,6 @@ class SMFLM(FLMBase):
                 nucleus_probs = sorted_probs * top_p_mask
                 nucleus_probs /= nucleus_probs.sum(dim=-1, keepdim=True)
                 probs = torch.zeros_like(probs).scatter_(-1, sorted_indices, nucleus_probs)
-
-            soft = (draft == self.mask_token)
             
             v = (probs - z) * (1.0 / torch.clamp(1.0 - t_curr.view(-1, 1, 1), min=eps)) # (probs - z) * dbeta_t/dt/(1 - beta_t)
             if self.freeze_committed:
