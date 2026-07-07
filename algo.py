@@ -1130,6 +1130,8 @@ class SMFLM(FLMBase):
             self.record_validation_accuracy(f, x0, tau_t, committed)
 
         loss_ce = -(x_data * f).sum(dim=-1) # cross-entropy loss
+        if getattr(self.config.algo, 'loss_on_uncommitted_only', False):
+            loss_ce = loss_ce * (~committed).float()
         self.log('loss', loss_ce.mean(), prog_bar=True)
         if self.config.algo.learnable_loss_weighting is True:
             loss_weight = self.backbone.learnable_loss_weighting(tau_t)
