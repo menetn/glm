@@ -481,6 +481,8 @@ class TrainerBase(L.LightningModule):
                 bin_sums_all[bin_idx] += acc_all
                 bin_sums_uncommitted[bin_idx] += acc_uncommitted
                 bin_counts[bin_idx] += 1
+            avg_all_list = []
+            avg_uncommitted_list = []
             for idx in range(10):
                 if bin_counts[idx] > 0:
                     avg_all = bin_sums_all[idx] / bin_counts[idx]
@@ -488,8 +490,24 @@ class TrainerBase(L.LightningModule):
                 else:
                     avg_all = 0.0
                     avg_uncommitted = 0.0
+                avg_all_list.append(avg_all)
+                avg_uncommitted_list.append(avg_uncommitted)
                 self.log(f'val/acc_all_vs_tau/bin_{idx}', avg_all, sync_dist=True)
                 self.log(f'val/acc_uncommitted_vs_tau/bin_{idx}', avg_uncommitted, sync_dist=True)
+            try:
+                if self.trainer and self.trainer.logger:
+                    logger = self.trainer.logger
+                    if hasattr(logger, 'experiment') and hasattr(logger.experiment, 'log'):
+                        import wandb
+                        table = wandb.Table(columns=["tau", "acc_all", "acc_uncommitted"])
+                        for idx in range(10):
+                            tau_val = idx * 0.1 + 0.05
+                            table.add_data(tau_val, avg_all_list[idx], avg_uncommitted_list[idx])
+                        logger.experiment.log({
+                            "val/accuracy_vs_tau_table": table
+                        }, commit=False)
+            except Exception:
+                pass
             self.val_accuracy_records = []
 
         self._train_mode()
