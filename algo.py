@@ -1093,9 +1093,9 @@ class SMFLM(FLMBase):
     def __init__(self, config, tokenizer):
         super().__init__(config, tokenizer)
         if hasattr(tokenizer, 'mask_token') and tokenizer.mask_token is not None:
-            self.mask_token = tokenizer.mask_token_id
+            self.mask_index = tokenizer.mask_token_id
         else:
-            self.mask_token = self.vocab_size
+            self.mask_index = self.vocab_size
         self.freeze_committed = getattr(config.algo, 'freeze_committed', True)
         gamma_scale = getattr(config.algo, 'gamma_scale', 1.0)
         self.gamma_schedule = trainer_base.LinearGammaSchedule(gamma_scale)
@@ -1140,6 +1140,11 @@ class SMFLM(FLMBase):
 
     def nll(self, input_tokens, output_tokens,
             current_accumulation_step=None, train_mode=False):
+        # NOTE: Flow Matching minimizes vector field regression (MSE / Cross-Entropy),
+        # which does NOT form a strict variational Evidence Lower Bound (ELBO) on the true 
+        # Negative Log-Likelihood like it does in Discrete Diffusion Models.
+        # This function is technically a misnomer. It is kept merely as a structural shim 
+        # so evaluation scripts have a uniform proxy metric to call across all model types.
         return self.loss(input_tokens, output_tokens, current_accumulation_step, train_mode)
 
     @torch.no_grad()
@@ -1152,7 +1157,7 @@ class SMFLM(FLMBase):
         device = self.device
 
         z = torch.randn((B, L, V), device=device, dtype=self.dtype)
-        draft = torch.full((B, L), self.mask_token, dtype=torch.long, device=device)
+        draft = torch.full((B, L), self.mask_index, dtype=torch.long, device=device)
 
         tau_vals = torch.linspace(0.0, 1.0, num_steps + 1, device=device)
         
@@ -1175,7 +1180,7 @@ class SMFLM(FLMBase):
             # This avoids having to numerically compute unstable dt/dtau gradients through the schedule LUTs!
             jump_prob = dgamma_dtau * dtau / torch.clamp(1.0 - gamma, min=eps)
 
-            soft = (draft == self.mask_token)
+            soft = (draft == self.mask_index)
             use_bias = getattr(self.config.algo, 'use_mask_embedding', False)
             log_probs = self.forward(z, tau_curr.expand(B), uncommitted_mask=soft if use_bias else None)
             if self.config.sampling.temperature != 1.0:
@@ -1201,7 +1206,7 @@ class SMFLM(FLMBase):
                 draft[jump] = committed_tokens
                 z[jump] = F.one_hot(committed_tokens, V).to(z.dtype)
 
-        remaining = (draft == self.mask_token)
+        remaining = (draft == self.mask_index)
         if remaining.any():
             draft[remaining] = probs.argmax(-1)[remaining]
 
