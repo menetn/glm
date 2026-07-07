@@ -1117,10 +1117,12 @@ class SMFLM(FLMBase):
         tau_t = self._sample_t_interval(B, current_accumulation_step,
                                     t_min=self.t_min, t_max=self.t_max)
         
-        if getattr(self.config.algo, 'linearize_schedule', False):
-            # Warp time tau to linearize the combined expected signal of discrete jump and continuous flow
-            # Expected signal becomes: tau_eff + (1 - tau_eff) * tau_eff = 2*tau_eff - tau_eff^2 = tau
-            tau_t = 1.0 - torch.sqrt(torch.clamp(1.0 - tau_t, min=0.0))
+        time_warp_exponent = getattr(self.config.algo, 'time_warp_exponent', 1.0)
+        if time_warp_exponent != 1.0:
+            # Warp time tau to adjust the speed of information release.
+            # The expected total signal in the sequence scales as: Signal(tau_t) = 1.0 - (1.0 - tau_t)^(2k)
+            # k = 0.5 yields a perfectly linear signal growth rate (Signal = tau_t).
+            tau_t = 1.0 - torch.pow(torch.clamp(1.0 - tau_t, min=0.0), time_warp_exponent)
             
         x_t, x_data, committed = self.corrupt_hybrid(x0, tau_t) # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
         use_bias = getattr(self.config.algo, 'use_mask_embedding', False)
@@ -1163,10 +1165,11 @@ class SMFLM(FLMBase):
 
         tau_vals = torch.linspace(0.0, 1.0, num_steps + 1, device=device)
         
-        if getattr(self.config.algo, 'linearize_schedule', False):
-            # Warp sampling time tau_vals to match the linearized expected signal used during training
-            # The dynamic step size (dtau = tau_next - tau_curr) naturally preserves exact jump probabilities
-            tau_vals = 1.0 - torch.sqrt(torch.clamp(1.0 - tau_vals, min=0.0))
+        time_warp_exponent = getattr(self.config.algo, 'time_warp_exponent', 1.0)
+        if time_warp_exponent != 1.0:
+            # Warp sampling time tau_vals to match the expected signal schedule used during training.
+            # The dynamic step size (dtau = tau_next - tau_curr) naturally preserves exact jump probabilities.
+            tau_vals = 1.0 - torch.pow(torch.clamp(1.0 - tau_vals, min=0.0), time_warp_exponent)
 
         for i in range(num_steps):
             tau_curr = tau_vals[i]
