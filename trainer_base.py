@@ -469,7 +469,7 @@ class TrainerBase(L.LightningModule):
                         data=[[s] for s in log_samples]
                     )
 
-        if hasattr(self, 'val_accuracy_records') and len(self.val_accuracy_records) > 0:
+        if self.val_accuracy_records:
             bin_sums_all = [0.0] * 10
             bin_sums_uncommitted = [0.0] * 10
             bin_counts = [0] * 10
