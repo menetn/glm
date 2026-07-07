@@ -1,4 +1,6 @@
 CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
+CKPT="last"
+STEPS=32
 SEED=1
 
 if [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
@@ -12,10 +14,12 @@ python -u -m main \
   loader.batch_size=2 \
   loader.eval_batch_size=64 \
   data=lm1b-wrap \
-  algo=ar \
   model=small \
   model.length=128 \
-  eval.checkpoint_path=$CHECKPOINT_DIR/last.ckpt \
+  algo=sedd \
+  eval.checkpoint_path=$CHECKPOINT_DIR/$CKPT.ckpt \
   sampling.num_sample_batches=15 \
-  +wandb.offline=true \
-  eval.generated_samples_path=$CHECKPOINT_DIR/$SEED-ckpt-last.json
+  sampling.steps=$STEPS \
+  sampling.predictor=analytic \
+  eval.generated_samples_path=$CHECKPOINT_DIR/$SEED-$STEPS-ckpt-$CKPT.json \
+  +wandb.offline=true

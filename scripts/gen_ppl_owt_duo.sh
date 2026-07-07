@@ -1,59 +1,30 @@
-#!/bin/bash
-#SBATCH -J an_owt_duo                    # Job name
-#SBATCH -o watch_folder/%x_%j.out     # log file (out & err)
-#SBATCH -N 1                          # Total number of nodes requested
-#SBATCH --get-user-env                # retrieve the users login environment
-#SBATCH --mem=16000                   # server memory requested (per node)
-#SBATCH -t 24:00:00                   # Time limit (hh:mm:ss)
-#SBATCH --partition=anonymous,gpu      # Request partition
-#SBATCH --constraint="[a5000|a6000|a100|3090]"
-#SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:1                  # Type/number of GPUs needed
-#SBATCH --open-mode=append            # Do not overwrite logs
-#SBATCH --requeue                     # Requeue upon preemption
+CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
+CKPT="duo_distilled"
+STEPS=2
+SEED=42
+TEMPERATURE=1.0
+DISABLE_EMA=False
 
-export HYDRA_FULL_ERROR=1
-
-checkpoint_path="YOUR_CHECKPOINT_PATH"
-ckpt=duo_distilled
-
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --steps) steps="$2"; shift ;;
-        --seed) seed="$2"; shift ;;
-        --ckpt) ckpt="$2"; shift ;;
-        --checkpoint_path) checkpoint_path="$2"; shift ;;
-        --temperature) temperature="$2"; shift ;;
-        --disable_ema) disable_ema="$2"; shift ;;
-        *) echo "Unknown parameter: $1"; exit 1 ;;
-    esac
-    shift
-done
-
-steps=${steps:-2}
-seed=${seed:-42}
-temperature=${temperature:-1.0}
-disable_ema=${disable_ema:-False}
-
-echo "  Steps: $steps"
-echo "  Seed: $seed"
-echo "  ckpt: $ckpt"
+if [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
+    echo "Error: CHECKPOINT_DIR must be set"
+    exit 1
+fi
 
 python -u -m main \
     mode=sample_eval \
-    seed=$seed \
+    seed=$SEED \
     loader.batch_size=2 \
     loader.eval_batch_size=8 \
     data=openwebtext-split \
     algo=duo_base \
     model=small \
-    eval.checkpoint_path=$checkpoint_path/$ckpt.ckpt \
+    eval.checkpoint_path=$CHECKPOINT_DIR/$CKPT.ckpt \
     sampling.num_sample_batches=2 \
-    sampling.steps=$steps \
+    sampling.steps=$STEPS \
     sampling.predictor=ancestral \
     +wandb.offline=true \
-    eval.generated_samples_path=$checkpoint_path/samples_ancestral_greedy/$seed-$steps-$ckpt-$temperature-disable-ema-$disable_ema-llama3_1.json \
+    eval.generated_samples_path=$CHECKPOINT_DIR/samples_ancestral_greedy/$SEED-$STEPS-$CKPT-$TEMPERATURE-disable-ema-$DISABLE_EMA-llama3_1.json \
     sampling.noise_removal=ancestral \
-    eval.disable_ema=$disable_ema \
-    sampling.temperature=$temperature \
+    eval.disable_ema=$DISABLE_EMA \
+    sampling.temperature=$TEMPERATURE \
     +algo.use_curriculum=True

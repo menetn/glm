@@ -1,20 +1,9 @@
-#!/bin/bash
-#SBATCH -J zeroshot_ar                # Job name
-#SBATCH -o watch_folder/%x_%j.out     # log file (out & err)
-#SBATCH -N 1                          # Total number of nodes requested
-#SBATCH --get-user-env                # retrieve the users login environment
-#SBATCH --mem=32000                   # server memory requested (per node)
-#SBATCH -t 960:00:00                  # Time limit (hh:mm:ss)
-#SBATCH --partition=gpu               # Request partition
-#SBATCH --constraint="[a5000|a6000|a100|3090]"
-#SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:1                  # Type/number of GPUs needed
-#SBATCH --open-mode=append            # Do not overwrite logs
-#SBATCH --requeue                     # Requeue upon preemption
+CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
 
-checkpoint_path="YOUR_CHECKPOINT_PATH"
-
-export HYDRA_FULL_ERROR=1
+if [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
+    echo "Error: CHECKPOINT_DIR must be set"
+    exit 1
+fi
 
 datasets=("ag_news"
           "scientific_papers_pubmed"
@@ -26,7 +15,7 @@ datasets=("ag_news"
           "lm1b-gpt2")
 for data in "${datasets[@]}"; do
   echo "$data"
-  srun python -u -m main \
+  python -u -m main \
     mode=ppl_eval \
     loader.batch_size=16 \
     loader.eval_batch_size=16 \
@@ -34,6 +23,6 @@ for data in "${datasets[@]}"; do
     data.insert_valid_eos=False \
     algo=ar \
     model.length=1024 \
-    eval.checkpoint_path=$checkpoint_path \
+    eval.checkpoint_path=$CHECKPOINT_DIR \
     +wandb.offline=true
 done

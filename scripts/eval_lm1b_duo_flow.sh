@@ -12,11 +12,13 @@ python -u -m main \
   mode=sample_eval \
   seed=$SEED \
   model=small \
+  model.length=128 \
   algo=duo_finetune \
   algo.use_curriculum=True \
   eval.checkpoint_path=$CHECKPOINT_DIR \
   loader.batch_size=2 \
-  loader.eval_batch_size=8 \
+  loader.eval_batch_size=64 \
+  data=lm1b-wrap \
   sampling.num_sample_batches=16 \
   sampling.noise_removal=$SAMPLER \
   training.pred_type=x0 \

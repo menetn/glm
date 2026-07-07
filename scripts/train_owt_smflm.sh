@@ -18,7 +18,7 @@ python -u -m main \
   data=openwebtext-split \
   data.cache_dir=$DATA_DIR \
   wandb.project=owt_full \
-  wandb.name=owt_full_smflm \
+  wandb.name=owt_smflm_lin_bias \
   model=small \
   algo=smflm \
   model.length=1024 \
@@ -30,4 +30,5 @@ python -u -m main \
   optim.lr=3e-4 \
   trainer.val_check_interval=5000 \
   algo.double_temb=False \
+  algo.use_mask_embedding=True \
   callbacks.checkpoint_every_n_steps.every_n_train_steps=20000 \

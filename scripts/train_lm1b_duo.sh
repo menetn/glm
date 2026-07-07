@@ -1,32 +1,34 @@
 #!/bin/bash
-#SBATCH -J duo-lm1b                   # Job name
-#SBATCH -o watch_folder/%x_%j.out     # output file (%j expands to jobID)
-#SBATCH -N 1                          # Total number of nodes requested
-#SBATCH --get-user-env                # retrieve the users login environment
-#SBATCH --mem=64000                   # server memory requested (per node)
-#SBATCH -t 960:00:00                  # Time limit (hh:mm:ss)
-#SBATCH --partition=anonymous          # Request partition
-#SBATCH --constraint="[a5000|a6000|a100|3090]"
-#SBATCH --constraint="gpu-mid|gpu-high"
-#SBATCH --ntasks-per-node=8
-#SBATCH --gres=gpu:8                  # Type/number of GPUs needed
-#SBATCH --open-mode=append            # Do not overwrite logs
-#SBATCH --requeue                     # Requeue upon pre-emption
 
-# To enable preemption re-loading, set `hydra.run.dir` or 
-# `checkpointing.save_dir` explicitly.
+DATA_DIR="YOUR_DATA_DIR"
 
 CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
 
-srun python -u -m main \
+if [ "$DATA_DIR" = "YOUR_DATA_DIR" ] || [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
+    echo "Error: DATA_DIR and CHECKPOINT_DIR must be set"
+    exit 1
+fi
+
+python -u -m main \
   checkpointing.save_dir=$CHECKPOINT_DIR \
-  loader.batch_size=64 \
-  loader.eval_batch_size=64 \
-  data=lm1b \
-  wandb.name=duo-lm1b \
+  checkpointing.resume_from_ckpt=True \
+  loader.global_batch_size=512 \
+  loader.batch_size=128 \
+  loader.eval_batch_size=128 \
+  data=lm1b-wrap \
+  data.cache_dir=$DATA_DIR \
+  wandb.project=lm1b_full \
+  wandb.name=lm1b_full_duo \
   model=small \
   algo=duo \
   model.length=128 \
+  sampling.num_sample_batches=1 \
+  sampling.steps=[128] \
+  trainer.max_steps=1000000 \
+  trainer.precision=bf16 \
+  optim.lr=3e-4 \
+  trainer.val_check_interval=5000 \
+  callbacks.checkpoint_every_n_steps.every_n_train_steps=20000 \
   algo.gumbel_tau_log10_start=-3.0 \
   algo.gumbel_tau_log10_end=-3.0 \
   algo.gamma_min=-3.5 \

@@ -18,9 +18,9 @@ python -u -m main \
   data=lm1b-wrap \
   data.cache_dir=$DATA_DIR \
   wandb.project=lm1b_full \
-  wandb.name=lm1b_full_flm \
+  wandb.name=lm1b_smflm_lin_bias \
   model=small \
-  algo=flm \
+  algo=smflm \
   model.length=128 \
   sampling.num_sample_batches=1 \
   sampling.solver=euler \
@@ -30,4 +30,5 @@ python -u -m main \
   optim.lr=3e-4 \
   trainer.val_check_interval=5000 \
   algo.double_temb=False \
+  algo.use_mask_embedding=True \
   callbacks.checkpoint_every_n_steps.every_n_train_steps=20000

@@ -6,12 +6,11 @@ if [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
 fi
 
 python -u -m main \
-  mode=sample_eval \
-  loader.batch_size=16 \
-  loader.eval_batch_size=16 \
-  data=openwebtext-split \
-  model=small \
-  algo=mdlm \
+  mode=ppl_eval \
+  loader.batch_size=128 \
+  loader.eval_batch_size=128 \
+  data=lm1b-wrap \
+  algo=ar \
+  model.length=128 \
   eval.checkpoint_path=$CHECKPOINT_DIR \
-  sampling.num_sample_batches=4 \
   +wandb.offline=true

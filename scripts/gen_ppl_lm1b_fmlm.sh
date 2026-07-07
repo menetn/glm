@@ -1,6 +1,10 @@
-#!/bin/bash
-CKPT_PATH="YOUR_CHECKPOINT_PATH"
+CHECKPOINT_DIR="YOUR_CHECKPOINT_DIR"
 STEPS=32
+
+if [ "$CHECKPOINT_DIR" = "YOUR_CHECKPOINT_DIR" ]; then
+    echo "Error: CHECKPOINT_DIR must be set"
+    exit 1
+fi
 
 python -u -m main \
       mode=sample_eval \
@@ -9,7 +13,7 @@ python -u -m main \
       model.length=128 \
       data=lm1b-wrap \
       algo=fmlm \
-      eval.checkpoint_path=$CKPT_PATH \
+      eval.checkpoint_path=$CHECKPOINT_DIR \
       loader.batch_size=2 \
       loader.eval_batch_size=16 \
       sampling.num_sample_batches=8 \
