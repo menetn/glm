@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from tqdm import tqdm
 import hydra.utils
 import lightning as L
+from lightning.pytorch.loggers import WandbLogger
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -469,56 +470,51 @@ class TrainerBase(L.LightningModule):
                         data=[[s] for s in log_samples]
                     )
 
-        if self.val_accuracy_records:
-            bin_sums_all = [0.0] * 10
-            bin_sums_uncommitted = [0.0] * 10
-            bin_counts = [0] * 10
-            for rec in self.val_accuracy_records:
-                tau = rec['tau']
-                acc_all = rec['acc_all']
-                acc_uncommitted = rec['acc_uncommitted']
-                bin_idx = min(int(tau * 10), 9)
-                bin_sums_all[bin_idx] += acc_all
-                bin_sums_uncommitted[bin_idx] += acc_uncommitted
-                bin_counts[bin_idx] += 1
-            avg_all_list = []
-            avg_uncommitted_list = []
+        if self.val_accuracy_records and self.logger:
+            # Concatenate records across batches and move to active device
+            device = self.device
+            taus = torch.cat([x[0] for x in self.val_accuracy_records]).to(device)
+            overall_accs = torch.cat([x[1] for x in self.val_accuracy_records]).to(device)
+            uncommitted_accs = torch.cat([x[2] for x in self.val_accuracy_records]).to(device)
+            
+            # Sync raw sequence results across all ranks (DistributedSampler ensures equal shapes across GPUs)
+            taus = self.all_gather(taus).view(-1)
+            overall_accs = self.all_gather(overall_accs).view(-1)
+            uncommitted_accs = self.all_gather(uncommitted_accs).view(-1)
+            
+            binned_overall_accs = []
+            binned_uncommitted_accs = []
+            bin_indices = torch.clamp((taus * 10).long(), 0, 9) # clamp handles edge case of tau_t = 1.0
             for idx in range(10):
-                if bin_counts[idx] > 0:
-                    avg_all = bin_sums_all[idx] / bin_counts[idx]
-                    avg_uncommitted = bin_sums_uncommitted[idx] / bin_counts[idx]
-                else:
-                    avg_all = 0.0
-                    avg_uncommitted = 0.0
-                avg_all_list.append(avg_all)
-                avg_uncommitted_list.append(avg_uncommitted)
-                self.log(f'val/acc_all_vs_tau/bin_{idx}', avg_all, sync_dist=True)
-                self.log(f'val/acc_uncommitted_vs_tau/bin_{idx}', avg_uncommitted, sync_dist=True)
-            try:
-                if self.trainer and self.trainer.logger:
-                    logger = self.trainer.logger
-                    if hasattr(logger, 'experiment') and hasattr(logger.experiment, 'log'):
-                        import wandb
-                        table = wandb.Table(columns=["tau", "acc_all", "acc_uncommitted"])
-                        for idx in range(10):
-                            tau_val = idx * 0.1 + 0.05
-                            table.add_data(tau_val, avg_all_list[idx], avg_uncommitted_list[idx])
-                        logger.experiment.log({
-                            "val/accuracy_vs_tau_table": table
-                        }, commit=False)
-            except Exception:
-                pass
-            self.val_accuracy_records = []
+                bin_mask = (bin_indices == idx)
+                
+                overall_acc_in_bin = overall_accs[bin_mask].mean().item()
+                # Use nanmean() because uncommitted_accs contains NaN values
+                uncommitted_acc_in_bin = uncommitted_accs[bin_mask].nanmean().item()
+                
+                binned_overall_accs.append(overall_acc_in_bin)
+                binned_uncommitted_accs.append(uncommitted_acc_in_bin)
+                self.log(f'val/acc_all_vs_tau/bin_{idx}', overall_acc_in_bin, sync_dist=False)
+                self.log(f'val/acc_uncommitted_vs_tau/bin_{idx}', uncommitted_acc_in_bin, sync_dist=False)
+            
+            if isinstance(self.logger, WandbLogger):
+                table = wandb.Table(columns=["tau", "acc_all", "acc_uncommitted"])
+                for idx in range(10):
+                    tau_val = idx * 0.1 + 0.05
+                    table.add_data(tau_val, binned_overall_accs[idx], binned_uncommitted_accs[idx])
+                self.logger.experiment.log({
+                    "val/accuracy_vs_tau_table": table
+                }, commit=False)
+        self.val_accuracy_records = []
 
         self._train_mode()
 
     def record_validation_accuracy(self, logits, targets, tau_t, committed_mask=None):
-        if self.training:
-            return
+        assert not self.training, "record_validation_accuracy should only be called during evaluation!"
         with torch.no_grad():
             B = targets.shape[0]
             preds = logits.argmax(dim=-1)
-            correct = (preds == targets)
+            correct = (preds == targets).float()
             
             if committed_mask is None:
                 committed_mask = torch.zeros_like(targets, dtype=torch.bool)
@@ -526,25 +522,14 @@ class TrainerBase(L.LightningModule):
             
             if isinstance(tau_t, float):
                 tau_t = torch.tensor([tau_t] * B, device=targets.device)
-            elif tau_t.ndim == 0:
+            elif isinstance(tau_t, torch.Tensor) and tau_t.ndim == 0:
                 tau_t = tau_t.expand(B)
-                
-            for b in range(B):
-                tau_val = tau_t[b].item()
-                seq_correct = correct[b]
-                seq_acc_all = seq_correct.float().mean().item()
-                
-                seq_uncommitted_mask = uncommitted_mask[b]
-                if seq_uncommitted_mask.any():
-                    seq_acc_uncommitted = seq_correct[seq_uncommitted_mask].float().mean().item()
-                else:
-                    seq_acc_uncommitted = 1.0
-                
-                self.val_accuracy_records.append({
-                    'tau': tau_val,
-                    'acc_all': seq_acc_all,
-                    'acc_uncommitted': seq_acc_uncommitted
-                })
+            assert isinstance(tau_t, torch.Tensor) and tau_t.ndim == 1 and tau_t.shape[0] == B, "tau_t must be a float, a scalar tensor, or a 1D tensor of shape (B,)"
+
+            acc_all = correct.mean(dim=-1)
+            acc_uncommitted = correct.masked_fill(committed_mask, float('nan')).nanmean(dim=-1)
+
+            self.val_accuracy_records.append((tau_t.detach().cpu(), acc_all.detach().cpu(), acc_uncommitted.detach().cpu()))
 
     def on_test_epoch_start(self):
         self._eval_mode()
@@ -747,7 +732,7 @@ class Diffusion(TrainerBase):
         
         if not self.training:
             committed = (xt != self.mask_index) if hasattr(self, 'mask_index') else torch.zeros_like(x0, dtype=torch.bool)
-            tau_t = 1.0 - alpha_t.squeeze(-1)
+            tau_t = 1.0 - t
             self.record_validation_accuracy(log_x_theta, x0, tau_t, committed)
 
         return self.nll_per_token(
