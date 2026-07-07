@@ -1037,6 +1037,8 @@ class FLM(FLMBase):
         t = self._tau_to_t(tau_t)
         x_t, target_data = self.corrupt_continuous(x0, t)
         f = self.forward(x_t, tau_t)
+        if not self.training:
+            self.record_validation_accuracy(f, x0, tau_t, committed_mask=None)
         loss = -(target_data * f).sum(dim=-1) # cross-entropy
         self.log('loss', loss.mean(), prog_bar=True)
         if self.config.algo.learnable_loss_weighting is True:
@@ -1097,7 +1099,6 @@ class SMFLM(FLMBase):
         self.freeze_committed = getattr(config.algo, 'freeze_committed', True)
         gamma_scale = getattr(config.algo, 'gamma_scale', 1.0)
         self.gamma_schedule = trainer_base.LinearGammaSchedule(gamma_scale)
-        self.val_accuracy_records = []
 
     def corrupt_hybrid(self, x0, tau_t):
         # x0 = X1 is data, X0 is noise.
@@ -1126,24 +1127,7 @@ class SMFLM(FLMBase):
         f = self.forward(x_t, tau_t, uncommitted_mask=~committed if use_bias else None) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
         
         if not self.training:
-            with torch.no_grad():
-                preds = f.argmax(dim=-1)
-                correct = (preds == x0)
-                uncommitted_mask = ~committed
-                for b in range(B):
-                    tau_val = tau_t[b].item()
-                    seq_correct = correct[b]
-                    seq_acc_all = seq_correct.float().mean().item()
-                    seq_uncommitted_mask = uncommitted_mask[b]
-                    if seq_uncommitted_mask.any():
-                        seq_acc_uncommitted = seq_correct[seq_uncommitted_mask].float().mean().item()
-                    else:
-                        seq_acc_uncommitted = 1.0
-                    self.val_accuracy_records.append({
-                        'tau': tau_val,
-                        'acc_all': seq_acc_all,
-                        'acc_uncommitted': seq_acc_uncommitted
-                    })
+            self.record_validation_accuracy(f, x0, tau_t, committed)
 
         loss_ce = -(x_data * f).sum(dim=-1) # cross-entropy loss
         self.log('loss', loss_ce.mean(), prog_bar=True)
@@ -1156,41 +1140,7 @@ class SMFLM(FLMBase):
 
     def nll(self, input_tokens, output_tokens,
             current_accumulation_step=None, train_mode=False):
-        # NOTE: Flow Matching minimizes vector field regression (MSE / Cross-Entropy),
-        # which does NOT form a strict variational Evidence Lower Bound (ELBO) on the true 
-        # Negative Log-Likelihood like it does in Discrete Diffusion Models.
-        # This function is technically a misnomer. It is kept merely as a structural shim 
-        # so evaluation scripts have a uniform proxy metric to call across all model types.
         return self.loss(input_tokens, output_tokens, current_accumulation_step, train_mode)
-
-    def on_validation_epoch_start(self):
-        super().on_validation_epoch_start()
-        self.val_accuracy_records = []
-
-    def on_validation_epoch_end(self):
-        super().on_validation_epoch_end()
-        if hasattr(self, 'val_accuracy_records') and len(self.val_accuracy_records) > 0:
-            bin_sums_all = [0.0] * 10
-            bin_sums_uncommitted = [0.0] * 10
-            bin_counts = [0] * 10
-            for rec in self.val_accuracy_records:
-                tau = rec['tau']
-                acc_all = rec['acc_all']
-                acc_uncommitted = rec['acc_uncommitted']
-                bin_idx = min(int(tau * 10), 9)
-                bin_sums_all[bin_idx] += acc_all
-                bin_sums_uncommitted[bin_idx] += acc_uncommitted
-                bin_counts[bin_idx] += 1
-            for idx in range(10):
-                if bin_counts[idx] > 0:
-                    avg_all = bin_sums_all[idx] / bin_counts[idx]
-                    avg_uncommitted = bin_sums_uncommitted[idx] / bin_counts[idx]
-                else:
-                    avg_all = 0.0
-                    avg_uncommitted = 0.0
-                self.log(f'val/acc_all_vs_tau/bin_{idx}', avg_all, sync_dist=True)
-                self.log(f'val/acc_uncommitted_vs_tau/bin_{idx}', avg_uncommitted, sync_dist=True)
-            self.val_accuracy_records = []
 
     @torch.no_grad()
     def generate_samples(self, num_samples, num_steps=None, eps=1e-5):

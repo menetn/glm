@@ -148,6 +148,7 @@ class TrainerBase(L.LightningModule):
         self.time_conditioning = self.config.algo.time_conditioning
         self.neg_infinity = -1000000.0
         self.fast_forward_epochs = None
+        self.val_accuracy_records = []
         self.fast_forward_batches = None
         self.target_tokens = None
 
@@ -394,6 +395,7 @@ class TrainerBase(L.LightningModule):
     def on_validation_epoch_start(self):
         self.metrics.reset()
         self._eval_mode()
+        self.val_accuracy_records = []
         assert self.metrics.valid_nlls.nll.mean_value == 0
         assert self.metrics.valid_nlls.nll.weight == 0
 
@@ -467,7 +469,64 @@ class TrainerBase(L.LightningModule):
                         data=[[s] for s in log_samples]
                     )
 
+        if hasattr(self, 'val_accuracy_records') and len(self.val_accuracy_records) > 0:
+            bin_sums_all = [0.0] * 10
+            bin_sums_uncommitted = [0.0] * 10
+            bin_counts = [0] * 10
+            for rec in self.val_accuracy_records:
+                tau = rec['tau']
+                acc_all = rec['acc_all']
+                acc_uncommitted = rec['acc_uncommitted']
+                bin_idx = min(int(tau * 10), 9)
+                bin_sums_all[bin_idx] += acc_all
+                bin_sums_uncommitted[bin_idx] += acc_uncommitted
+                bin_counts[bin_idx] += 1
+            for idx in range(10):
+                if bin_counts[idx] > 0:
+                    avg_all = bin_sums_all[idx] / bin_counts[idx]
+                    avg_uncommitted = bin_sums_uncommitted[idx] / bin_counts[idx]
+                else:
+                    avg_all = 0.0
+                    avg_uncommitted = 0.0
+                self.log(f'val/acc_all_vs_tau/bin_{idx}', avg_all, sync_dist=True)
+                self.log(f'val/acc_uncommitted_vs_tau/bin_{idx}', avg_uncommitted, sync_dist=True)
+            self.val_accuracy_records = []
+
         self._train_mode()
+
+    def record_validation_accuracy(self, logits, targets, tau_t, committed_mask=None):
+        if self.training:
+            return
+        with torch.no_grad():
+            B = targets.shape[0]
+            preds = logits.argmax(dim=-1)
+            correct = (preds == targets)
+            
+            if committed_mask is None:
+                committed_mask = torch.zeros_like(targets, dtype=torch.bool)
+            uncommitted_mask = ~committed_mask
+            
+            if isinstance(tau_t, float):
+                tau_t = torch.tensor([tau_t] * B, device=targets.device)
+            elif tau_t.ndim == 0:
+                tau_t = tau_t.expand(B)
+                
+            for b in range(B):
+                tau_val = tau_t[b].item()
+                seq_correct = correct[b]
+                seq_acc_all = seq_correct.float().mean().item()
+                
+                seq_uncommitted_mask = uncommitted_mask[b]
+                if seq_uncommitted_mask.any():
+                    seq_acc_uncommitted = seq_correct[seq_uncommitted_mask].float().mean().item()
+                else:
+                    seq_acc_uncommitted = 1.0
+                
+                self.val_accuracy_records.append({
+                    'tau': tau_val,
+                    'acc_all': seq_acc_all,
+                    'acc_uncommitted': seq_acc_uncommitted
+                })
 
     def on_test_epoch_start(self):
         self._eval_mode()
@@ -667,6 +726,12 @@ class Diffusion(TrainerBase):
         xt = self.q_xt(x0, alpha_t)
         log_x_theta = self.forward(xt, sigma=sigma)
         utils.print_nans(log_x_theta, 'model_output')
+        
+        if not self.training:
+            committed = (xt != self.mask_index) if hasattr(self, 'mask_index') else torch.zeros_like(x0, dtype=torch.bool)
+            tau_t = 1.0 - alpha_t.squeeze(-1)
+            self.record_validation_accuracy(log_x_theta, x0, tau_t, committed)
+
         return self.nll_per_token(
             log_x_theta=log_x_theta,
             xt=xt,
