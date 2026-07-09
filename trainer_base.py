@@ -470,7 +470,7 @@ class TrainerBase(L.LightningModule):
                         data=[[s] for s in log_samples]
                     )
 
-        if self.val_accuracy_records and self.logger:
+        if self.val_accuracy_records:
             # Concatenate records across batches and move to active device
             device = self.device
             taus = torch.cat([x[0] for x in self.val_accuracy_records]).to(device)
@@ -497,14 +497,29 @@ class TrainerBase(L.LightningModule):
                 self.log(f'val/acc_all_vs_tau/bin_{idx}', overall_acc_in_bin, sync_dist=False)
                 self.log(f'val/acc_uncommitted_vs_tau/bin_{idx}', uncommitted_acc_in_bin, sync_dist=False)
             
-            if isinstance(self.logger, WandbLogger):
-                table = wandb.Table(columns=["tau", "acc_all", "acc_uncommitted"])
+            if isinstance(self.logger, WandbLogger) and self.global_rank == 0:
+                columns = ["tau", "acc_all", "acc_uncommitted"]
+                data = []
                 for idx in range(10):
-                    tau_val = idx * 0.1 + 0.05
-                    table.add_data(tau_val, binned_overall_accs[idx], binned_uncommitted_accs[idx])
+                    tau_val = round(idx * 0.1 + 0.05, 2)
+                    val_overall = binned_overall_accs[idx]
+                    val_uncommitted = binned_uncommitted_accs[idx]
+                    # Replace NaN with None for WandB
+                    if np.isnan(val_overall):
+                        val_overall = None
+                    if np.isnan(val_uncommitted):
+                        val_uncommitted = None
+                    data.append([tau_val, val_overall, val_uncommitted])
+                
+                table = wandb.Table(columns=columns, data=data)
+                plot_all = wandb.plot.bar(table, "tau", "acc_all", title="Overall Accuracy vs Tau")
+                plot_uncommitted = wandb.plot.bar(table, "tau", "acc_uncommitted", title="Uncommitted Accuracy vs Tau")
+                
+                # Combine into a single log call with explicit step to prevent WandB step desync
                 self.logger.experiment.log({
-                    "val/accuracy_vs_tau_table": table
-                }, commit=False)
+                    "val/accuracy_vs_tau_plot_overall": plot_all,
+                    "val/accuracy_vs_tau_plot_uncommitted": plot_uncommitted
+                }, step=self.global_step)
         self.val_accuracy_records = []
 
         self._train_mode()

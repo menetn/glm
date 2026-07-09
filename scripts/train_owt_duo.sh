@@ -30,6 +30,7 @@ python -u -m main \
   optim.lr=3e-4 \
   trainer.val_check_interval=5000 \
   callbacks.checkpoint_every_n_steps.every_n_train_steps=20000 \
+  strategy.find_unused_parameters=True \
   algo.gumbel_tau_log10_start=-3.0 \
   algo.gumbel_tau_log10_end=-3.0 \
   algo.gamma_min=-3.55 \

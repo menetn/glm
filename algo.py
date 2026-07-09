@@ -43,8 +43,8 @@ class AR(trainer_base.TrainerBase):
         return input_tokens, output_tokens, valid_tokens
 
     def nll(self, input_tokens, output_tokens,
-            current_accumulation_step):
-        del current_accumulation_step
+            current_accumulation_step=None, train_mode=False):
+        del current_accumulation_step, train_mode
         output = self.backbone(input_tokens, None)
         output[:, :, self.mask_index] = self.neg_infinity
         output = output.log_softmax(-1)
@@ -1114,9 +1114,9 @@ class SMFLM(FLMBase):
              xT=None, given_t=None, not_sampling_t=False):
         del output_tokens, xT, given_t, not_sampling_t
         B = x0.shape[0]
-        tau_t = self._sample_t_interval(B, current_accumulation_step,
+        unwarped_tau_t = self._sample_t_interval(B, current_accumulation_step,
                                     t_min=self.t_min, t_max=self.t_max)
-        
+        tau_t = unwarped_tau_t.clone()
         time_warp_exponent = getattr(self.config.algo, 'time_warp_exponent', 1.0)
         if time_warp_exponent != 1.0:
             # Warp time tau to adjust the speed of information release.
@@ -1129,7 +1129,7 @@ class SMFLM(FLMBase):
         f = self.forward(x_t, tau_t, uncommitted_mask=~committed if use_bias else None) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
         
         if not self.training:
-            self.record_validation_accuracy(f, x0, tau_t, committed)
+            self.record_validation_accuracy(f, x0, unwarped_tau_t, committed)
 
         loss_ce = -(x_data * f).sum(dim=-1) # cross-entropy loss
         if getattr(self.config.algo, 'loss_on_uncommitted_only', False):

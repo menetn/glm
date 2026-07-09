@@ -18,7 +18,7 @@ python -u -m main \
   data=lm1b-wrap \
   data.cache_dir=$DATA_DIR \
   wandb.project=lm1b_full \
-  wandb.name=lm1b_smflm_lin_bias \
+  wandb.name=lm1b_smflm_0.5 \
   model=small \
   algo=smflm \
   model.length=128 \
@@ -31,4 +31,5 @@ python -u -m main \
   trainer.val_check_interval=5000 \
   algo.double_temb=False \
   algo.use_mask_embedding=True \
-  callbacks.checkpoint_every_n_steps.every_n_train_steps=20000
+  callbacks.checkpoint_every_n_steps.every_n_train_steps=20000 \
+  strategy.find_unused_parameters=True

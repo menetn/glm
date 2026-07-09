@@ -27,4 +27,5 @@ python -u -m main \
   trainer.precision=bf16 \
   optim.lr=3e-4 \
   trainer.val_check_interval=5000 \
-  callbacks.checkpoint_every_n_steps.every_n_train_steps=20000
+  callbacks.checkpoint_every_n_steps.every_n_train_steps=20000 \
+  strategy.find_unused_parameters=True
