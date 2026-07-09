@@ -787,9 +787,10 @@ class FLMBase(trainer_base.TrainerBase):
         self.lut_a2g, self.lut_g2a = utils.build_luts(K=self.vocab_size)
         self._is_resuming = (
             config.checkpointing.resume_from_ckpt
-            and config.checkpointing.resume_ckpt_path is not None
             and utils.fsspec_exists(config.checkpointing.resume_ckpt_path)
         )
+        if getattr(config.algo, 'use_mask_embedding', False):
+            self.learned_source_mean = nn.Parameter(torch.zeros(self.vocab_size))
 
     def _validate_configuration(self):
         pass
@@ -885,6 +886,8 @@ class FLMBase(trainer_base.TrainerBase):
         t = t.unsqueeze(-1).unsqueeze(-1)
         target_data = F.one_hot(x0, self.vocab_size).float()
         noise = torch.randn_like(target_data, dtype=torch.float32)
+        if hasattr(self, 'learned_source_mean'):
+            noise = noise + self.learned_source_mean
         x_t = (1 - t) * noise + t * target_data # t=0 is pure noise, t=1 is pure target data. This convention is exactly opposite that of the discrete diffusion literature (MDLM, etc) and the implementation thereof (in this codebase).
         return x_t, target_data
 
@@ -1097,15 +1100,17 @@ class SMFLM(FLMBase):
         else:
             self.mask_index = self.vocab_size
         self.freeze_committed = getattr(config.algo, 'freeze_committed', True)
-        gamma_scale = getattr(config.algo, 'gamma_scale', 1.0)
-        self.gamma_schedule = trainer_base.LinearGammaSchedule(gamma_scale)
+        flow_jump_coefficient = getattr(config.algo, 'flow_jump_coefficient', 0.5)
+        self.gamma_schedule = trainer_base.LinearGammaSchedule(flow_jump_coefficient)
 
-    def corrupt_hybrid(self, x0, tau_t):
+    def corrupt_hybrid(self, x0, tau_t, eps=1e-5):
         # x0 = X1 is data, X0 is noise.
-        t = self._tau_to_t(tau_t)
-        gamma, _ = self.gamma_schedule(tau_t)
+        c = getattr(self.config.algo, 'flow_jump_coefficient', 0.5) # c = 0 is flow (implies gamma=0), c = 1 is jump (implies gamma=tau)
+        gamma, _ = self.gamma_schedule(tau_t) # for jump process
+        tau_flow = (tau_t * (1.0 - c)) / torch.clamp(1.0 - c * tau_t, min=eps) # c*tau + (1-c*tau) * tau_flow = tau -> accounts for right step-size to balance information gain with jump
+        t_flow = self._tau_to_t(tau_flow) # LUT to approximately linearize the information gain of the flow in the simplex
         committed = torch.rand(x0.shape[0], x0.shape[1], device=self.device) < gamma[:, None]
-        x_hybrid, one_hot = self.corrupt_continuous(x0, t)
+        x_hybrid, one_hot = self.corrupt_continuous(x0, t_flow)
         x_hybrid = torch.where(committed.unsqueeze(-1), one_hot, x_hybrid) # pure functional selection, prevents torch.compile deadlocks
         return x_hybrid, one_hot, committed
 
@@ -1114,22 +1119,12 @@ class SMFLM(FLMBase):
              xT=None, given_t=None, not_sampling_t=False):
         del output_tokens, xT, given_t, not_sampling_t
         B = x0.shape[0]
-        unwarped_tau_t = self._sample_t_interval(B, current_accumulation_step,
-                                    t_min=self.t_min, t_max=self.t_max)
-        tau_t = unwarped_tau_t.clone()
-        time_warp_exponent = getattr(self.config.algo, 'time_warp_exponent', 1.0)
-        if time_warp_exponent != 1.0:
-            # Warp time tau to adjust the speed of information release.
-            # The expected total signal in the sequence scales as: Signal(tau_t) = 1.0 - (1.0 - tau_t)^(2k)
-            # k = 0.5 yields a perfectly linear signal growth rate (Signal = tau_t).
-            tau_t = 1.0 - torch.pow(torch.clamp(1.0 - tau_t, min=0.0), time_warp_exponent)
-            
+        tau_t = self._sample_t_interval(B, current_accumulation_step, t_min=self.t_min, t_max=self.t_max)
         x_t, x_data, committed = self.corrupt_hybrid(x0, tau_t) # x0 = X1 is true data, and X0 ~ N(0, I). x_t = X_t. The notation is a bit confusing and due to a clash between flow and diffusion literature.
-        use_bias = getattr(self.config.algo, 'use_mask_embedding', False)
-        f = self.forward(x_t, tau_t, uncommitted_mask=~committed if use_bias else None) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
+        f = self.forward(x_t, tau_t) # model is tau-conditioned rather than t-conditioned to better reflect its knowledge and progress on the denoising process.
         
         if not self.training:
-            self.record_validation_accuracy(f, x0, unwarped_tau_t, committed)
+            self.record_validation_accuracy(f, x0, tau_t, committed)
 
         loss_ce = -(x_data * f).sum(dim=-1) # cross-entropy loss
         if getattr(self.config.algo, 'loss_on_uncommitted_only', False):
@@ -1165,18 +1160,17 @@ class SMFLM(FLMBase):
 
         tau_vals = torch.linspace(0.0, 1.0, num_steps + 1, device=device)
         
-        time_warp_exponent = getattr(self.config.algo, 'time_warp_exponent', 1.0)
-        if time_warp_exponent != 1.0:
-            # Warp sampling time tau_vals to match the expected signal schedule used during training.
-            # The dynamic step size (dtau = tau_next - tau_curr) naturally preserves exact jump probabilities.
-            tau_vals = 1.0 - torch.pow(torch.clamp(1.0 - tau_vals, min=0.0), time_warp_exponent)
-
+        c = getattr(self.config.algo, 'flow_jump_coefficient', 0.5)
         for i in range(num_steps):
             tau_curr = tau_vals[i]
             tau_next = tau_vals[i + 1]
             dtau = tau_next - tau_curr
-            t_curr = self._tau_to_t(tau_curr.expand(B))
-            dt = self._tau_to_t(tau_next.expand(B)) - t_curr
+            
+            tau_flow_curr = (tau_curr * (1.0 - c)) / torch.clamp(1.0 - c * tau_curr, min=eps)
+            tau_flow_next = (tau_next * (1.0 - c)) / torch.clamp(1.0 - c * tau_next, min=eps)
+
+            t_flow_curr = self._tau_to_t(tau_flow_curr.expand(B))
+            dt_flow = self._tau_to_t(tau_flow_next.expand(B)) - t_flow_curr
 
             gamma, dgamma_dtau = self.gamma_schedule(tau_curr.expand(B))
             # The jump rate w.r.t continuous time t is lambda_t = (dgamma/dt) / (1 - gamma)
@@ -1186,11 +1180,11 @@ class SMFLM(FLMBase):
             jump_prob = dgamma_dtau * dtau / torch.clamp(1.0 - gamma, min=eps)
 
             soft = (draft == self.mask_index)
-            use_bias = getattr(self.config.algo, 'use_mask_embedding', False)
-            log_probs = self.forward(z, tau_curr.expand(B), uncommitted_mask=soft if use_bias else None)
+            log_probs = self.forward(z, tau_curr.expand(B))
             if self.config.sampling.temperature != 1.0:
                 log_probs = log_probs / self.config.sampling.temperature
             probs = log_probs.exp()
+
             if self.p_nucleus < 1.0:
                 sorted_probs, sorted_indices = torch.sort(probs, descending=True, dim=-1)
                 cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
@@ -1200,10 +1194,10 @@ class SMFLM(FLMBase):
                 nucleus_probs /= nucleus_probs.sum(dim=-1, keepdim=True)
                 probs = torch.zeros_like(probs).scatter_(-1, sorted_indices, nucleus_probs)
             
-            v = (probs - z) * (1.0 / torch.clamp(1.0 - t_curr.view(-1, 1, 1), min=eps)) # (probs - z) * dbeta_t/dt/(1 - beta_t)
+            v = (probs - z) * (1.0 / torch.clamp(1.0 - t_flow_curr.view(-1, 1, 1), min=eps)) # (probs - z) * dbeta_t/dt/(1 - beta_t)
             if self.freeze_committed:
                 v[~soft] = 0.0
-            z = z + dt.view(-1, 1, 1) * v
+            z = z + dt_flow.view(-1, 1, 1) * v
 
             jump = soft & (torch.rand(B, L, device=device) < jump_prob[:, None])
             if jump.any():

@@ -18,13 +18,8 @@ learnable_loss_weighting: False  # If True, the model learns a dynamic per-times
                                  # We set False to enforce the uniform theoretical weighting (omega_t = 1).
 
 # --- SM-FLM specific ---
-gamma_scale: 1.0         # 'c' in gamma(tau) = c*tau. Determines the final percentage of tokens committed.
-                         # 1.0 = all tokens commit by t=1. 0.0 = pure FLM (no discrete jumps).
+flow_jump_coefficient: 0.5   # 'c' in gamma(tau) = c*tau. Controls the balance between continuous flow and discrete unmasking.
+                           # 1.0 = pure MDLM, 0.0 = pure FLM. Total information is preserved to precisely tau at all steps.
 freeze_committed: True   # If True, zeroes out the flow velocity and jump probability for tokens that have already committed.
-time_warp_exponent: 0.5  # Controls the speed of information release by warping curriculum time tau_t to 1.0 - (1.0 - tau_t)^k.
-                         # This results in an expected sequence signal growth rate of: Signal(tau_t) = 1.0 - (1.0 - tau_t)^(2k).
-                         # k = 1.0: Linear warp (Signal grows quadratically/fast-start, Signal(tau_t) = 2*tau_t - tau_t^2).
-                         # k = 0.5: Sqrt warp (Signal grows linearly/uniform-start, Signal(tau_t) = tau_t).
-                         # k < 0.5: Concave warp (Signal grows slower-than-linear/slow-start, forcing low-signal training).
 use_mask_embedding: False # If True, adds a learnable mask_embedding to all uncommitted tokens.
 loss_on_uncommitted_only: False # If True, masks out the cross-entropy loss on already committed positions during training.
