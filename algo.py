@@ -790,7 +790,7 @@ class FLMBase(trainer_base.TrainerBase):
             and utils.fsspec_exists(config.checkpointing.resume_ckpt_path)
         )
         if getattr(config.algo, 'use_mask_embedding', False):
-            self.learned_source_mean = nn.Parameter(torch.zeros(self.vocab_size))
+            self.learned_source_mean = torch.nn.Parameter(torch.zeros(self.vocab_size))
 
     def _validate_configuration(self):
         pass
